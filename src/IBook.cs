@@ -27,7 +27,7 @@ static class Book
         byte[] head = new byte[8];
         using (FileStream fs = File.OpenRead(path))
         {
-            fs.Read(head, 0, 8);
+            fs.ReadExactly(head, 0, 8);
         }
 
         // ZIP: xlsx / xlsm / xlsb

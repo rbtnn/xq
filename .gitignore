@@ -8,3 +8,15 @@ tests/EvalTests.exe
 tests/out.txt
 tests/err.txt
 tests/__pycache__/
+
+# .NET build outputs
+bin/
+obj/
+dist/
+TestResults/
+*.trx
+*.pdb
+xq.exe
+tests/EvalTests.exe
+tests/out.txt
+tests/err.txt

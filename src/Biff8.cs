@@ -347,7 +347,7 @@ class XlsBook : BookBase
         ctx.SheetNames = allSheetNames.ToArray();
         ctx.Names = definedNames;
         ctx.ExternSheet = ExternSheet;
-        ctx.SharedFormula = delegate(int row, int col)
+        ctx.SharedFormula = delegate (int row, int col)
         {
             long key = ((long)row << 16) | (uint)col;
             byte[] t;

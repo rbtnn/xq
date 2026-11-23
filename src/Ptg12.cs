@@ -20,7 +20,9 @@ static class Ptg12
             switch (ptg)
             {
                 // ---- references ------------------------------------------------
-                case 0x24: case 0x44: case 0x64: // PtgRef
+                case 0x24:
+                case 0x44:
+                case 0x64: // PtgRef
                     {
                         int row = (int)Ptg.ReadU32(t, p);
                         int colraw = Ptg.ReadU16(t, p + 4);
@@ -37,7 +39,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x2C: case 0x4C: case 0x6C: // PtgRefN
+                case 0x2C:
+                case 0x4C:
+                case 0x6C: // PtgRefN
                     {
                         int row = (int)Ptg.ReadU32(t, p);
                         int colraw = Ptg.ReadU16(t, p + 4);
@@ -49,7 +53,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x2D: case 0x4D: case 0x6D: // PtgAreaN
+                case 0x2D:
+                case 0x4D:
+                case 0x6D: // PtgAreaN
                     {
                         int r1 = (int)Ptg.ReadU32(t, p);
                         int r2 = (int)Ptg.ReadU32(t, p + 4);
@@ -67,7 +73,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x25: case 0x45: case 0x65: // PtgArea
+                case 0x25:
+                case 0x45:
+                case 0x65: // PtgArea
                     {
                         int r1 = (int)Ptg.ReadU32(t, p);
                         int r2 = (int)Ptg.ReadU32(t, p + 4);
@@ -94,7 +102,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x3A: case 0x5A: case 0x7A: // PtgRef3d
+                case 0x3A:
+                case 0x5A:
+                case 0x7A: // PtgRef3d
                     {
                         int ixti = Ptg.ReadU16(t, p);
                         int row = (int)Ptg.ReadU32(t, p + 2);
@@ -115,7 +125,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x3B: case 0x5B: case 0x7B: // PtgArea3d
+                case 0x3B:
+                case 0x5B:
+                case 0x7B: // PtgArea3d
                     {
                         int ixti = Ptg.ReadU16(t, p);
                         int r1 = (int)Ptg.ReadU32(t, p + 2);
@@ -145,15 +157,21 @@ static class Ptg12
                     }
                     break;
 
-                case 0x2A: case 0x4A: case 0x6A: // PtgRefErr
+                case 0x2A:
+                case 0x4A:
+                case 0x6A: // PtgRefErr
                     stack.Add(new PtgOperand(90, "#REF!"));
                     p += 6;
                     break;
-                case 0x2B: case 0x4B: case 0x6B: // PtgAreaErr
+                case 0x2B:
+                case 0x4B:
+                case 0x6B: // PtgAreaErr
                     stack.Add(new PtgOperand(90, "#REF!"));
                     p += 12;
                     break;
-                case 0x3C: case 0x5C: case 0x7C: // PtgRefErr3d
+                case 0x3C:
+                case 0x5C:
+                case 0x7C: // PtgRefErr3d
                     {
                         int ixti = Ptg.ReadU16(t, p);
                         p += 8;
@@ -161,7 +179,9 @@ static class Ptg12
                         stack.Add(new PtgOperand(90, (sheet != null && sheet.Length > 0 ? Ptg.QuoteSheet(sheet) + "!" : "") + "#REF!"));
                     }
                     break;
-                case 0x3D: case 0x5D: case 0x7D: // PtgAreaErr3d
+                case 0x3D:
+                case 0x5D:
+                case 0x7D: // PtgAreaErr3d
                     {
                         int ixti = Ptg.ReadU16(t, p);
                         p += 14;
@@ -170,7 +190,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x23: case 0x43: case 0x63: // PtgName
+                case 0x23:
+                case 0x43:
+                case 0x63: // PtgName
                     {
                         int index = (int)Ptg.ReadU32(t, p) - 1;
                         p += 4;
@@ -181,7 +203,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x39: case 0x59: case 0x79: // PtgNameX
+                case 0x39:
+                case 0x59:
+                case 0x79: // PtgNameX
                     stack.Add(new PtgOperand(90, "#NAME?"));
                     p += 6;
                     break;
@@ -308,13 +332,17 @@ static class Ptg12
                     p += 8;
                     break;
 
-                case 0x20: case 0x40: case 0x60: // PtgArray
+                case 0x20:
+                case 0x40:
+                case 0x60: // PtgArray
                     stack.Add(new PtgOperand(90, "{...}"));
                     p += 14;
                     break;
 
                 // ---- functions --------------------------------------------------
-                case 0x21: case 0x41: case 0x61: // PtgFunc
+                case 0x21:
+                case 0x41:
+                case 0x61: // PtgFunc
                     {
                         int id = Ptg.ReadU16(t, p);
                         p += 2;
@@ -325,7 +353,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x22: case 0x42: case 0x62: // PtgFuncVar
+                case 0x22:
+                case 0x42:
+                case 0x62: // PtgFuncVar
                     {
                         int argc = t[p];
                         int id = Ptg.ReadU16(t, p + 1);
@@ -347,7 +377,9 @@ static class Ptg12
                     }
                     break;
 
-                case 0x29: case 0x49: case 0x69: // PtgMemArea
+                case 0x29:
+                case 0x49:
+                case 0x69: // PtgMemArea
                     {
                         int cce = Ptg.ReadU16(t, p);
                         p += 2 + cce;

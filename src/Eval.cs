@@ -209,6 +209,23 @@ class EvalValue
         }
     }
 
+    public int CompareTo(EvalValue other)
+    {
+        EvalValue a = Scalar();
+        EvalValue b = other.Scalar();
+
+        if (a.Kind == EvalKind.Text && b.Kind == EvalKind.Text)
+            return string.Compare(a.Text, b.Text, StringComparison.OrdinalIgnoreCase);
+
+        bool oka, okb;
+        double da = a.ToNumber(out oka);
+        double db = b.ToNumber(out okb);
+        if (oka && okb)
+            return da < db ? -1 : (da > db ? 1 : 0);
+
+        return string.Compare(a.ToText(), b.ToText(), StringComparison.OrdinalIgnoreCase);
+    }
+
     public string TypeCode()
     {
         switch (Kind)
@@ -379,7 +396,7 @@ class EvalContext
         SheetInfo sh = FindSheet(sheet);
         if (sh == null) return;
 
-        book.ReadCells(sh, r1, c1, r2, c2, delegate(string sn, int row, int col, string val, string type, string f, int styleIndex)
+        book.ReadCells(sh, r1, c1, r2, c2, delegate (string sn, int row, int col, string val, string type, string f, int styleIndex)
         {
             EvalCell c = new EvalCell();
             c.V = val;
@@ -1026,19 +1043,118 @@ class EvalBinaryNode : EvalNode
 
     static int Compare(EvalValue a, EvalValue b)
     {
-        EvalValue sa = a.Scalar();
-        EvalValue sb = b.Scalar();
+        return a.CompareTo(b);
+    }
+}
 
-        if (sa.Kind == EvalKind.Text && sb.Kind == EvalKind.Text)
-            return string.Compare(sa.Text, sb.Text, StringComparison.OrdinalIgnoreCase);
+static class EvalWildcard
+{
+    public static bool HasWildcard(string s)
+    {
+        return s.IndexOf('*') >= 0 || s.IndexOf('?') >= 0;
+    }
 
-        bool oka, okb;
-        double da = sa.ToNumber(out oka);
-        double db = sb.ToNumber(out okb);
-        if (oka && okb)
-            return da < db ? -1 : (da > db ? 1 : 0);
+    public static bool Match(string pattern, string text)
+    {
+        int p = 0;
+        int t = 0;
+        int star = -1;
+        int match = 0;
 
-        return string.Compare(sa.ToText(), sb.ToText(), StringComparison.OrdinalIgnoreCase);
+        while (t < text.Length)
+        {
+            if (p < pattern.Length && (pattern[p] == '?' || char.ToUpperInvariant(pattern[p]) == char.ToUpperInvariant(text[t])))
+            {
+                p++;
+                t++;
+            }
+            else if (p < pattern.Length && pattern[p] == '*')
+            {
+                star = p;
+                p++;
+                match = t;
+            }
+            else if (star >= 0)
+            {
+                p = star + 1;
+                match++;
+                t = match;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        while (p < pattern.Length && pattern[p] == '*') p++;
+        return p == pattern.Length;
+    }
+}
+
+class EvalCriteria
+{
+    public string Op;
+    public EvalValue Value;
+    public bool Wildcard;
+
+    public static EvalCriteria From(EvalValue value)
+    {
+        EvalCriteria c = new EvalCriteria();
+        c.Op = "=";
+        c.Value = value.Scalar();
+
+        if (c.Value.Kind == EvalKind.Text)
+        {
+            string s = c.Value.Text;
+            string op = null;
+            if (s.StartsWith(">=", StringComparison.Ordinal)) { op = ">="; s = s.Substring(2); }
+            else if (s.StartsWith("<=", StringComparison.Ordinal)) { op = "<="; s = s.Substring(2); }
+            else if (s.StartsWith("<>", StringComparison.Ordinal)) { op = "<>"; s = s.Substring(2); }
+            else if (s.StartsWith(">", StringComparison.Ordinal)) { op = ">"; s = s.Substring(1); }
+            else if (s.StartsWith("<", StringComparison.Ordinal)) { op = "<"; s = s.Substring(1); }
+            else if (s.StartsWith("=", StringComparison.Ordinal)) { op = "="; s = s.Substring(1); }
+
+            if (op != null) c.Op = op;
+            c.Value = ParseOperand(s);
+        }
+
+        c.Wildcard = c.Value.Kind == EvalKind.Text && EvalWildcard.HasWildcard(c.Value.Text);
+        return c;
+    }
+
+    static EvalValue ParseOperand(string s)
+    {
+        if (s.Length == 0) return EvalValue.Empty;
+        double d;
+        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out d))
+            return EvalValue.Num(d);
+        return EvalValue.Str(s);
+    }
+
+    public bool Match(EvalValue cell)
+    {
+        cell = cell.Scalar();
+        if (cell.IsError) return false;
+
+        bool cellEmpty = cell.Kind == EvalKind.Empty || (cell.Kind == EvalKind.Text && cell.Text.Length == 0);
+
+        if (Op == "=" && Value.Kind == EvalKind.Empty) return cellEmpty;
+        if (Op == "<>" && Value.Kind == EvalKind.Empty) return !cellEmpty;
+
+        if (Wildcard && Value.Kind == EvalKind.Text && cell.Kind == EvalKind.Text)
+        {
+            bool m = EvalWildcard.Match(Value.Text, cell.Text);
+            return Op == "<>" ? !m : m;
+        }
+
+        int cmp = cell.CompareTo(Value);
+        if (Op == "=") return cmp == 0;
+        if (Op == "<>") return cmp != 0;
+        if (Op == "<") return cmp < 0;
+        if (Op == "<=") return cmp <= 0;
+        if (Op == ">") return cmp > 0;
+        if (Op == ">=") return cmp >= 0;
+        return false;
     }
 }
 
@@ -1113,6 +1229,249 @@ class EvalFunctionNode : EvalNode
         if (fn == "FALSE") return EvalValue.False;
         if (fn == "NA") return EvalValue.Err("#N/A");
         if (fn == "PI") return EvalValue.Num(Math.PI);
+
+        if (fn == "INDIRECT")
+        {
+            if (args.Count < 1) return EvalValue.Err("#VALUE!");
+            EvalValue textValue = Arg(ctx, sheet, row, col, 0);
+            if (textValue.IsError) return textValue;
+
+            if (args.Count >= 2)
+            {
+                EvalValue a1 = Arg(ctx, sheet, row, col, 1);
+                if (a1.IsError) return a1;
+                bool a1ok;
+                bool useA1 = a1.ToBool(out a1ok);
+                if (!a1ok || !useA1) return EvalValue.Err("#REF!");
+            }
+
+            string refText = textValue.ToText().Trim();
+            if (refText.Length == 0 || refText.StartsWith("[", StringComparison.Ordinal))
+                return EvalValue.Err("#REF!");
+
+            try
+            {
+                EvalNode node = EvalParser.Parse(refText);
+                if (node is EvalRefNode)
+                    return node.Eval(ctx, sheet, row, col);
+            }
+            catch (EvalParseException)
+            {
+            }
+            return EvalValue.Err("#REF!");
+        }
+
+        if (fn == "MATCH")
+        {
+            if (args.Count < 2) return EvalValue.Err("#VALUE!");
+            EvalValue lookup = Arg(ctx, sheet, row, col, 0);
+            if (lookup.IsError) return lookup;
+            EvalValue arrayValue = Arg(ctx, sheet, row, col, 1);
+            if (arrayValue.IsError) return arrayValue;
+            if (arrayValue.Kind != EvalKind.Range) return EvalValue.Err("#N/A");
+            if (arrayValue.Rows > 1 && arrayValue.Cols > 1) return EvalValue.Err("#N/A");
+
+            int matchType = 1;
+            if (args.Count >= 3)
+            {
+                EvalValue mt = Arg(ctx, sheet, row, col, 2);
+                if (mt.IsError) return mt;
+                bool mtok;
+                double d = mt.ToNumber(out mtok);
+                if (!mtok) return EvalValue.Err("#VALUE!");
+                matchType = (int)d;
+            }
+
+            List<EvalValue> flat = new List<EvalValue>();
+            for (int r = 0; r < arrayValue.Rows; r++)
+                for (int c = 0; c < arrayValue.Cols; c++)
+                    flat.Add(arrayValue.Cells[r, c]);
+
+            if (matchType == 0)
+            {
+                for (int i = 0; i < flat.Count; i++)
+                    if (MatchLookup(flat[i], lookup)) return EvalValue.Num(i + 1);
+                return EvalValue.Err("#N/A");
+            }
+
+            int found = -1;
+            for (int i = 0; i < flat.Count; i++)
+            {
+                int cmp = flat[i].CompareTo(lookup);
+                if (matchType > 0)
+                {
+                    if (cmp <= 0) found = i;
+                }
+                else
+                {
+                    if (cmp >= 0) found = i;
+                }
+            }
+            if (found < 0) return EvalValue.Err("#N/A");
+            return EvalValue.Num(found + 1);
+        }
+
+        if (fn == "INDEX")
+        {
+            if (args.Count < 2) return EvalValue.Err("#VALUE!");
+            EvalValue arrayValue = Arg(ctx, sheet, row, col, 0);
+            if (arrayValue.IsError) return arrayValue;
+            if (arrayValue.Kind != EvalKind.Range) return EvalValue.Err("#VALUE!");
+
+            EvalValue rowValue = Arg(ctx, sheet, row, col, 1);
+            if (rowValue.IsError) return rowValue;
+            bool rowOk;
+            double rowD = rowValue.ToNumber(out rowOk);
+            if (!rowOk) return EvalValue.Err("#VALUE!");
+            int rowIndex = (int)rowD;
+
+            int colIndex = 1;
+            bool hasCol = false;
+            if (args.Count >= 3)
+            {
+                EvalValue colValue = Arg(ctx, sheet, row, col, 2);
+                if (colValue.IsError) return colValue;
+                bool colOk;
+                double colD = colValue.ToNumber(out colOk);
+                if (!colOk) return EvalValue.Err("#VALUE!");
+                colIndex = (int)colD;
+                hasCol = true;
+            }
+
+            if (arrayValue.Rows == 1 && arrayValue.Cols > 1 && !hasCol)
+            {
+                colIndex = rowIndex;
+                rowIndex = 1;
+            }
+            else if (arrayValue.Cols == 1)
+            {
+                colIndex = 1;
+            }
+            else if (!hasCol)
+            {
+                return EvalValue.Err("#VALUE!");
+            }
+
+            if (rowIndex == 0 && colIndex == 0) return arrayValue;
+
+            if (rowIndex == 0)
+            {
+                if (colIndex < 1 || colIndex > arrayValue.Cols) return EvalValue.Err("#REF!");
+                EvalValue[,] colArr = new EvalValue[arrayValue.Rows, 1];
+                for (int r = 0; r < arrayValue.Rows; r++)
+                    colArr[r, 0] = arrayValue.Cells[r, colIndex - 1];
+                return EvalValue.RangeValue(colArr);
+            }
+
+            if (colIndex == 0)
+            {
+                if (rowIndex < 1 || rowIndex > arrayValue.Rows) return EvalValue.Err("#REF!");
+                EvalValue[,] rowArr = new EvalValue[1, arrayValue.Cols];
+                for (int c = 0; c < arrayValue.Cols; c++)
+                    rowArr[0, c] = arrayValue.Cells[rowIndex - 1, c];
+                return EvalValue.RangeValue(rowArr);
+            }
+
+            if (rowIndex < 1 || rowIndex > arrayValue.Rows || colIndex < 1 || colIndex > arrayValue.Cols)
+                return EvalValue.Err("#REF!");
+
+            return arrayValue.Cells[rowIndex - 1, colIndex - 1];
+        }
+
+        if (fn == "VLOOKUP")
+        {
+            if (args.Count < 3) return EvalValue.Err("#VALUE!");
+            EvalValue lookup = Arg(ctx, sheet, row, col, 0);
+            if (lookup.IsError) return lookup;
+            EvalValue table = Arg(ctx, sheet, row, col, 1);
+            if (table.IsError) return table;
+            if (table.Kind != EvalKind.Range) return EvalValue.Err("#VALUE!");
+
+            EvalValue colValue = Arg(ctx, sheet, row, col, 2);
+            if (colValue.IsError) return colValue;
+            bool colOk;
+            double colD = colValue.ToNumber(out colOk);
+            if (!colOk) return EvalValue.Err("#VALUE!");
+            int colIndex = (int)colD;
+            if (colIndex < 1) return EvalValue.Err("#VALUE!");
+            if (colIndex > table.Cols) return EvalValue.Err("#REF!");
+
+            bool rangeLookup = true;
+            if (args.Count >= 4)
+            {
+                EvalValue rv = Arg(ctx, sheet, row, col, 3);
+                if (rv.IsError) return rv;
+                bool rvOk;
+                bool b = rv.ToBool(out rvOk);
+                if (!rvOk) return EvalValue.Err("#VALUE!");
+                rangeLookup = b;
+            }
+
+            int found = -1;
+            if (rangeLookup)
+            {
+                for (int r = 0; r < table.Rows; r++)
+                {
+                    if (table.Cells[r, 0].CompareTo(lookup) <= 0) found = r;
+                }
+            }
+            else
+            {
+                for (int r = 0; r < table.Rows; r++)
+                {
+                    if (MatchLookup(table.Cells[r, 0], lookup))
+                    {
+                        found = r;
+                        break;
+                    }
+                }
+            }
+
+            if (found < 0) return EvalValue.Err("#N/A");
+            return table.Cells[found, colIndex - 1];
+        }
+
+        if (fn == "SUMIF" || fn == "COUNTIF")
+        {
+            if (args.Count < 2) return EvalValue.Err("#VALUE!");
+            EvalValue rangeValue = Arg(ctx, sheet, row, col, 0);
+            if (rangeValue.IsError) return rangeValue;
+            if (rangeValue.Kind != EvalKind.Range) return EvalValue.Err("#VALUE!");
+
+            EvalValue criteriaValue = Arg(ctx, sheet, row, col, 1);
+            if (criteriaValue.IsError) return criteriaValue;
+            EvalCriteria criteria = EvalCriteria.From(criteriaValue);
+
+            EvalValue sumRange = rangeValue;
+            if (fn == "SUMIF" && args.Count >= 3)
+            {
+                sumRange = Arg(ctx, sheet, row, col, 2);
+                if (sumRange.IsError) return sumRange;
+                if (sumRange.Kind != EvalKind.Range) return EvalValue.Err("#VALUE!");
+                if (sumRange.Rows != rangeValue.Rows || sumRange.Cols != rangeValue.Cols)
+                    return EvalValue.Err("#VALUE!");
+            }
+
+            double sum = 0.0;
+            int count = 0;
+            for (int r = 0; r < rangeValue.Rows; r++)
+            {
+                for (int c = 0; c < rangeValue.Cols; c++)
+                {
+                    if (!criteria.Match(rangeValue.Cells[r, c])) continue;
+                    count++;
+                    if (fn == "SUMIF")
+                    {
+                        EvalValue sv = sumRange.Cells[r, c].Scalar();
+                        if (sv.IsError) continue;
+                        if (sv.Kind == EvalKind.Number) sum += sv.Number;
+                    }
+                }
+            }
+
+            if (fn == "SUMIF") return EvalValue.Num(sum);
+            return EvalValue.Num(count);
+        }
 
         List<EvalValue> vals = FlattenArgs(ctx, sheet, row, col);
 
@@ -1352,6 +1711,16 @@ class EvalFunctionNode : EvalNode
         }
 
         return EvalValue.Err("#NAME?");
+    }
+
+    static bool MatchLookup(EvalValue cell, EvalValue lookup)
+    {
+        cell = cell.Scalar();
+        lookup = lookup.Scalar();
+        if (cell.IsError) return false;
+        if (lookup.Kind == EvalKind.Text && EvalWildcard.HasWildcard(lookup.Text) && cell.Kind == EvalKind.Text)
+            return EvalWildcard.Match(lookup.Text, cell.Text);
+        return cell.CompareTo(lookup) == 0;
     }
 
     static EvalValue FirstError(List<EvalValue> vals)

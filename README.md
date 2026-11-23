@@ -1,4 +1,4 @@
-# xq — xlsx / xlsm / xlsb / xls を jq に流すための C# 5 CLI
+# xq — xlsx / xlsm / xlsb / xls を jq に流すための C# / .NET 10 CLI
 
 `xq` は **.xlsx / .xlsm / .xlsb / .xls のセル・数式・名前定義・VBA を JSON で出力する単体実行ファイル**です。
 Excel も COM も使わず、ZIP + XML + BIFF + OLE を直接読むので高速です。
@@ -7,38 +7,40 @@ Excel も COM も使わず、ZIP + XML + BIFF + OLE を直接読むので高速�
 
 ```
 xq/
-├── src/          C# 5 ソース
-├── build.bat     同梱 csc.exe でビルド
-├── xq.exe        ビルド済み実行ファイル
+├── src/          C# ソース
+├── xq.csproj     .NET 10 プロジェクト
+├── tests/        xUnit テスト + CLI スモークテスト
+├── build.bat     dotnet publish でビルド
 ├── rust/         Rust 再実装（calamine 使用）
 ├── samples/      20,000行 × 30列 の xlsx / xls サンプル
 ├── bench/        COM ベンチマーク用 C# プログラム
 ├── bench.ps1     C# / Rust / COM のベンチマーク
-├── tests/        `-e` の評価テストと CLI テスト
 └── README.md
 ```
 
-- **C# 5 のみ**（文字列補間・`?.`・`nameof`・パターンマッチ等は不使用）
-- **Windows 同梱の `csc.exe` だけでビルド**（.NET SDK / Roslyn 不要）
+- **C# 5 互換のコード**を **.NET 10 SDK** でビルド
+- `dotnet build` / `dotnet format` / `dotnet test` で開発
 - 出力は **NDJSON / JSON** → 絞り込みは `jq` に任せる（jq を再発明しない）
-- 実行ファイルは **約 108 KB**、.NET Framework 4.5+（Windows 10/11 に同梱）
+- `build.bat` は `dotnet publish` で単一ファイル `xq.exe` を生成
 
-## ビルド
+## ビルド（.NET 10）
+
+```bash
+dotnet build xq.csproj -c Release
+dotnet format xq.csproj
+dotnet test tests/xq-tests.csproj
+```
+
+Windows で単一ファイルを作る場合:
 
 ```bat
 build.bat
 ```
 
-中身はこれだけです（C# 5 コンパイラ = `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`）:
+`build.bat` は `dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true` を実行し、
+`dist\xq.exe` をルートの `xq.exe` にコピーします。
 
-```bat
-csc /nologo /optimize+ /target:exe /out:xq.exe ^
-    /r:System.dll /r:System.Core.dll /r:System.Xml.dll ^
-    /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
-    src\A1.cs src\Cfb.cs src\Ovba.cs src\Xlsx.cs src\NumFmt.cs ^
-    src\IBook.cs src\Ptg.cs src\Ptg12.cs src\Biff8.cs src\XlsbBook.cs ^
-    src\Eval.cs src\xq.cs
-```
+CI では `.github/workflows/build.yml` が **build / format / test** を実行します。
 
 ## 使い方
 
@@ -216,6 +218,9 @@ xq eval book.xlsx -e "=A1+B1"
   - 数学: `ABS`, `INT`, `MOD`, `POWER`, `SQRT`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`
   - 文字列: `LEN`, `LEFT`, `RIGHT`, `MID`, `TRIM`, `UPPER`, `LOWER`, `CONCATENATE`, `VALUE`, `TEXT`
   - 判定: `ISBLANK`, `ISNUMBER`, `ISTEXT`, `ISERROR`, `ISNA`
+  - 検索: `VLOOKUP`, `INDEX`, `MATCH`
+  - 条件集計: `SUMIF`, `COUNTIF`
+  - 間接参照: `INDIRECT`
   - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
   - その他: `TRUE`, `FALSE`, `NA`, `PI`
 - セルの値は、まずファイルに保存されている**キャッシュ値**を使います。
@@ -227,22 +232,28 @@ xq eval book.xlsx -e "=A1+B1"
 制限:
 
 - Excel の完全互換ではありません。
-- `VLOOKUP` / `INDEX` / `MATCH` / `SUMIF` / `COUNTIF` などは未実装です。
+- `VLOOKUP` / `INDEX` / `MATCH` / `SUMIF` / `COUNTIF` / `INDIRECT` は実装済みですが、
+  Excel の全エッジケース（ワイルドカード、近似一致、外部参照など）を完全再現するものではありません。
 - 配列数式、スピル、3D参照、外部ブック参照、volatile 関数は未対応です。
+- `INDIRECT` は `A1` 形式のみ対応し、`R1C1` と外部ブック参照は `#REF!` になります。
 - `_xlfn.*` の新しい関数は、実装済みのもの以外は `#NAME?` になります。
 - キャッシュ値がある数式セルは再計算しません（将来 `--recalc` を検討）。
 - Rust 版 `xq-rs` には `-e` はまだ実装していません。
 
 ## テスト
 
+```bash
+dotnet test tests/xq-tests.csproj
+```
+
+- `tests/XqTests.cs` … xUnit による評価器テスト（参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
+- `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `eval.xls` の再生成
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1
 ```
-
-- `tests/EvalTests.cs` … 評価器の直接テスト（参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
-- `tests/run_tests.ps1` … `EvalTests.exe` のビルドと CLI スモークテスト
-- `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `eval.xls` の再生成
 
 ## バイナリ形式（.xlsb / .xls）
 

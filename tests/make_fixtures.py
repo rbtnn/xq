@@ -65,6 +65,10 @@ def make_xlsx(path):
     ws["I10"] = "=ISERROR(1/0)"
     ws["I11"] = "=ISNA(NA())"
 
+    ws["K1"] = 10
+    ws["K2"] = 20
+    ws["K3"] = 30
+
     ws["J1"] = "=SUM(A1:A3,10)"
     ws["J2"] = "=SUM(MyRange)"
     ws["J3"] = "=Other!A1+Data!A2"

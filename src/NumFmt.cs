@@ -18,12 +18,12 @@ class DateToken
 
 static class NumFmt
 {
-    static readonly string[] MonthAbbr = { "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec" };
-    static readonly string[] MonthFull = { "January","February","March","April","May","June","July","August","September","October","November","December" };
-    static readonly string[] DayAbbr   = { "Sun","Mon","Tue","Wed","Thu","Fri","Sat" };
-    static readonly string[] DayFull   = { "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday" };
-    static readonly string[] JaDayAbbr = { "日","月","火","水","木","金","土" };
-    static readonly string[] JaDayFull = { "日曜日","月曜日","火曜日","水曜日","木曜日","金曜日","土曜日" };
+    static readonly string[] MonthAbbr = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    static readonly string[] MonthFull = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
+    static readonly string[] DayAbbr = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    static readonly string[] DayFull = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+    static readonly string[] JaDayAbbr = { "日", "月", "火", "水", "木", "金", "土" };
+    static readonly string[] JaDayFull = { "日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日" };
 
     // ------------------------------------------------------------ entry
 

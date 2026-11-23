@@ -1,14 +1,28 @@
 @echo off
-rem Build xq.exe with the in-box C# 5 compiler (no SDK, no Roslyn needed).
 setlocal
-set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
-if not exist "%CSC%" set CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe
 
-"%CSC%" /nologo /optimize+ /target:exe /platform:anycpu ^
-  /out:xq.exe ^
-  /r:System.dll /r:System.Core.dll /r:System.Xml.dll ^
-  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
-  src\A1.cs src\Cfb.cs src\Ovba.cs src\Xlsx.cs src\NumFmt.cs src\IBook.cs src\Ptg.cs src\Ptg12.cs src\Biff8.cs src\XlsbBook.cs src\Eval.cs src\xq.cs
+cd /d "%~dp0"
 
-if errorlevel 1 exit /b 1
-echo built xq.exe
+where dotnet >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [ERROR] dotnet not found. Install .NET SDK 10.
+    echo         winget install Microsoft.DotNet.SDK.10
+    exit /b 1
+)
+
+echo build: dotnet publish -c Release -r win-x64
+dotnet publish "%~dp0xq.csproj" -c Release -r win-x64 ^
+    --self-contained -p:PublishSingleFile=true -o "%~dp0dist"
+if errorlevel 1 (
+    echo.
+    echo [ERROR] build failed.
+    exit /b 1
+)
+
+if exist "%~dp0dist\xq.exe" (
+    copy /y "%~dp0dist\xq.exe" "%~dp0xq.exe" >nul
+)
+
+echo.
+echo built: xq.exe
+endlocal

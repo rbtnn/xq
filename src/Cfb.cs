@@ -17,10 +17,10 @@ class CfbEntry
 
 class Cfb
 {
-    const uint FREESECT   = 0xFFFFFFFF;
+    const uint FREESECT = 0xFFFFFFFF;
     const uint ENDOFCHAIN = 0xFFFFFFFE;
-    const uint FATSECT    = 0xFFFFFFFD;
-    const uint DIFSECT    = 0xFFFFFFFC;
+    const uint FATSECT = 0xFFFFFFFD;
+    const uint DIFSECT = 0xFFFFFFFC;
 
     byte[] data;
     int majorVer;
@@ -58,11 +58,11 @@ class Cfb
         sectorSize = 1 << sectorShift;
         miniSectorSize = 1 << miniShift;
 
-        uint firstDir    = BitConverter.ToUInt32(data, 48);
-        miniCutoff       = BitConverter.ToUInt32(data, 56);
+        uint firstDir = BitConverter.ToUInt32(data, 48);
+        miniCutoff = BitConverter.ToUInt32(data, 56);
         uint firstMiniFat = BitConverter.ToUInt32(data, 60);
-        uint firstDifat  = BitConverter.ToUInt32(data, 68);
-        uint numDifat    = BitConverter.ToUInt32(data, 72);
+        uint firstDifat = BitConverter.ToUInt32(data, 68);
+        uint numDifat = BitConverter.ToUInt32(data, 72);
 
         List<uint> difat = new List<uint>();
         for (int i = 0; i < 109; i++) difat.Add(BitConverter.ToUInt32(data, 76 + i * 4));
@@ -186,12 +186,12 @@ class Cfb
         if (chars < 0) chars = 0;
         e.Name = Encoding.Unicode.GetString(raw, off, chars * 2);
         e.Type = raw[off + 66];
-        e.Left  = (int)BitConverter.ToUInt32(raw, off + 68);
+        e.Left = (int)BitConverter.ToUInt32(raw, off + 68);
         e.Right = (int)BitConverter.ToUInt32(raw, off + 72);
         e.Child = (int)BitConverter.ToUInt32(raw, off + 76);
 
         uint startLow = BitConverter.ToUInt32(raw, off + 116);
-        uint sizeLow  = BitConverter.ToUInt32(raw, off + 120);
+        uint sizeLow = BitConverter.ToUInt32(raw, off + 120);
         uint sizeHigh = BitConverter.ToUInt32(raw, off + 124);
 
         e.Start = startLow;

@@ -3,30 +3,24 @@ $ErrorActionPreference = "Continue"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-$csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-if (!(Test-Path $csc)) { $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe" }
-
-if (!(Test-Path (Join-Path $root "xq.exe"))) {
-    cmd /c build.bat | Out-Null
-}
-
-$sources = @(
-    "src\A1.cs", "src\Cfb.cs", "src\Ovba.cs", "src\Xlsx.cs", "src\NumFmt.cs",
-    "src\IBook.cs", "src\Ptg.cs", "src\Ptg12.cs", "src\Biff8.cs", "src\XlsbBook.cs",
-    "src\Eval.cs", "tests\EvalTests.cs"
-)
-& $csc /nologo /optimize+ /target:exe /out:tests\EvalTests.exe `
-    /r:System.dll /r:System.Core.dll /r:System.Xml.dll `
-    /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll $sources
-
 $failures = 0
 
-& .\tests\EvalTests.exe tests\fixtures\eval.xlsx tests\fixtures\eval.xls tests\fixtures\eval.xlsb
+# xUnit tests (primary test suite).
+dotnet test tests\xq-tests.csproj -c Release
 if ($LASTEXITCODE -ne 0) {
     $failures++
-    Write-Host "EvalTests FAILED"
+    Write-Host "dotnet test FAILED"
 } else {
-    Write-Host "EvalTests PASSED"
+    Write-Host "dotnet test PASSED"
+}
+
+# CLI smoke tests need the published xq.exe.
+if (!(Test-Path (Join-Path $root "xq.exe"))) {
+    cmd /c build.bat
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "build FAILED"
+        exit 1
+    }
 }
 
 function Invoke-Xq([string]$rawArgs) {
@@ -72,6 +66,12 @@ $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=IF(A1>0,"yes","no")'; Expected = "yes" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=TEXT(1234.5,"#,##0.00")'; Expected = "1,234.50" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=CONCATENATE(B1," ",B2)'; Expected = "Hello World" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=VLOOKUP(2,A1:B3,2,FALSE)"; Expected = "World" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=INDEX(A1:B3,2,2)"; Expected = "World" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=MATCH(2.5,A1:A3,1)"; Expected = "2" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUMIF(A1:A3,">1",K1:K3)'; Expected = "50" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=COUNTIF(B1:B3,"*o*")'; Expected = "2" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=INDIRECT("A1:A3")'; Expected = "1" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

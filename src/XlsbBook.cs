@@ -421,7 +421,7 @@ class XlsbBook : BookBase
         ctx.RelDelta = false;
         ctx.BaseRow = 0;
         ctx.BaseCol = 0;
-        ctx.SharedFormulaEx = delegate(int masterRow, int cellCol, out int baseRow, out int baseCol)
+        ctx.SharedFormulaEx = delegate (int masterRow, int cellCol, out int baseRow, out int baseCol)
         {
             for (int i = 0; i < xs.Shared.Count; i++)
             {

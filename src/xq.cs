@@ -169,7 +169,7 @@ class Program
         int emitted = 0;
         if (json) sw.Write('[');
 
-        CellSink sink = delegate(string sn, int row, int col, string val, string type, string f, int styleIndex)
+        CellSink sink = delegate (string sn, int row, int col, string val, string type, string f, int styleIndex)
         {
             if (val == null && !all) return;
             if (limit >= 0 && emitted >= limit) throw new LimitReachedException();
