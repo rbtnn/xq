@@ -237,6 +237,8 @@ xq eval book.xlsx -e "=A1+B1"
   - 間接参照: `INDIRECT`
   - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
   - その他: `TRUE`, `FALSE`, `NA`, `PI`
+- 関数は入れ子にできます。例: `=IF(A1>0,SUM(A1:A3),MAX(A1:A3))`、
+  `=INDEX(A1:B3,MATCH(2,A1:A3,0),2)`、`=TEXT(ROUND(AVERAGE(A1:A3),2),"0.00")`
 - 文字列 `"02"` と数値 `02` は区別します。`="02"` は文字列 `02`、`=02` は数値 `2` です。
 - セルの値は、まずファイルに保存されている**キャッシュ値**を使います。
   キャッシュ値のない数式セルは、参照関係から**依存関係グラフ**を作り、
@@ -264,7 +266,7 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（195ケース。参照、演算、関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（213ケース。参照、演算、関数、入れ子関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
 - `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック

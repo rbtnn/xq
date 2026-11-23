@@ -92,6 +92,9 @@ $cliCases = @(
     @{ File = "tests\fixtures\types.xlsx"; Expr = "=A1"; Expected = "02" },
     @{ File = "tests\fixtures\types.xlsx"; Expr = "=A2"; Expected = "2" },
     @{ File = "tests\fixtures\types.xlsx"; Expr = "=A3"; Expected = "2" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=IF(A1>0,SUM(A1:A3),MAX(A1:A3))"; Expected = "6" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=INDEX(A1:B3,MATCH(2,A1:A3,0),2)"; Expected = "World" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUM(INDIRECT(ADDRESS(1,1)&":"&ADDRESS(3,1)))'; Expected = "6" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

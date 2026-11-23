@@ -241,6 +241,30 @@ public class XqTests
     }
 
     [Theory]
+    [InlineData("=IF(A1>0,SUM(A1:A3),MAX(A1:A3))", "6")]
+    [InlineData("=ROUND(SUM(A1:A3)/COUNT(A1:A3),1)", "2")]
+    [InlineData("=IFERROR(VLOOKUP(99,A1:B3,2,FALSE),\"none\")", "none")]
+    [InlineData("=INDEX(A1:B3,MATCH(2,A1:A3,0),2)", "World")]
+    [InlineData("=LEFT(TRIM(CONCATENATE(B1,\" \",B2)),5)", "Hello")]
+    [InlineData("=SUM(SUM(A1:A2),SUM(A2:A3))", "8")]
+    [InlineData("=MAX(MIN(A1:A3),2)", "2")]
+    [InlineData("=ROUND(POWER(SQRT(16),2),0)", "16")]
+    [InlineData("=ADDRESS(ROW(A5),COLUMN(C3),4)", "C5")]
+    [InlineData("=SUBSTITUTE(REPLACE(\"abcdef\",2,3,\"X\"),\"X\",\"Y\")", "aYef")]
+    [InlineData("=IF(AND(A1>0,A2>0),SUM(A1:A3),0)", "6")]
+    [InlineData("=IFERROR(IF(A1>0,\"yes\",\"no\"),\"err\")", "yes")]
+    [InlineData("=TEXT(ROUND(AVERAGE(A1:A3),2),\"0.00\")", "2.00")]
+    [InlineData("=CONCATENATE(UPPER(LEFT(B1,2)),LOWER(RIGHT(B2,2)))", "HEld")]
+    [InlineData("=SUM(INDIRECT(ADDRESS(1,1)&\":\"&ADDRESS(3,1)))", "6")]
+    [InlineData("=IF(COUNT(A1:A3)=3,SUM(A1:A3),0)", "6")]
+    [InlineData("=MID(SUBSTITUTE(\"a-b-c\",\"-\",\"+\"),2,3)", "+b+")]
+    [InlineData("=IF(IF(A1>0,TRUE,FALSE),IF(A2>0,SUM(A1:A3),0),0)", "6")]
+    public void NestedFunctions(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("eval.xlsx", "Data", expr));
+    }
+
+    [Theory]
     [InlineData("=NA()", "#N/A")]
     [InlineData("=1/0", "#DIV/0!")]
     [InlineData("=UNKNOWN(1)", "#NAME?")]
