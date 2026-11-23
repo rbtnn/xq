@@ -79,6 +79,12 @@ $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=COLUMNS(A1:B3)"; Expected = "2" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUBSTITUTE("a-b-c","-","+",2)'; Expected = "a-b+c" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=REPLACE("abcdef",2,3,"X")'; Expected = "aXef" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=C1"; Expected = "3" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=C2"; Expected = "6" },
+    @{ File = "tests\fixtures\graph.xlsx"; Expr = "=A3"; Expected = "4" },
+    @{ File = "tests\fixtures\graph.xlsx"; Expr = "=B2"; Expected = "11" },
+    @{ File = "tests\fixtures\graph.xlsx"; Expr = "=Other!A1"; Expected = "11" },
+    @{ File = "tests\fixtures\graph.xlsx"; Expr = "=C1"; Expected = "#REF!" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

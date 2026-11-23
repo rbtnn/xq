@@ -251,6 +251,38 @@ class EvalCell
     public string T;
     public string F;
     public int Style;
+    public string Sheet;
+    public int Row;
+    public int Col;
+}
+
+class EvalRangeRef
+{
+    public string Sheet;
+    public int R1;
+    public int C1;
+    public int R2;
+    public int C2;
+}
+
+class LoadedRange
+{
+    public string Sheet;
+    public int R1;
+    public int C1;
+    public int R2;
+    public int C2;
+}
+
+class EvalDepNode
+{
+    public string Key;
+    public string Sheet;
+    public int Row;
+    public int Col;
+    public EvalNode Ast;
+    public List<string> Dependencies = new List<string>();
+    public List<string> Dependents = new List<string>();
 }
 
 class EvalContext
@@ -260,7 +292,9 @@ class EvalContext
     Dictionary<string, EvalCell> cells = new Dictionary<string, EvalCell>(StringComparer.OrdinalIgnoreCase);
     Dictionary<string, EvalValue> values = new Dictionary<string, EvalValue>(StringComparer.OrdinalIgnoreCase);
     HashSet<string> evaluating = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    HashSet<string> loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    List<LoadedRange> loadedRanges = new List<LoadedRange>();
+    Dictionary<string, EvalDepNode> nodes = new Dictionary<string, EvalDepNode>(StringComparer.OrdinalIgnoreCase);
+    Dictionary<string, EvalNode> astCache = new Dictionary<string, EvalNode>(StringComparer.OrdinalIgnoreCase);
 
     public EvalContext(IBook book, string defaultSheet)
     {
@@ -275,7 +309,14 @@ class EvalContext
 
     public EvalValue Evaluate(string expression)
     {
-        return EvaluateFormula(expression, defaultSheet, 0, 0);
+        if (expression == null) throw new EvalParseException("empty expression");
+        string f = expression.Trim();
+        if (f.StartsWith("=")) f = f.Substring(1);
+        if (f.Length == 0) throw new EvalParseException("empty expression");
+
+        EvalNode root = EvalParser.Parse(f);
+        Prepare(root, defaultSheet);
+        return root.Eval(this, defaultSheet, 0, 0);
     }
 
     public EvalValue EvaluateFormula(string formula, string sheet, int row, int col)
@@ -294,8 +335,11 @@ class EvalContext
         if (sheet == null) return EvalValue.Err("#REF!");
         SheetInfo sh = FindSheet(sheet);
         if (sh == null) return EvalValue.Err("#REF!");
-        sheet = sh.Name;
+        return GetCellNormalized(sh.Name, row, col);
+    }
 
+    EvalValue GetCellNormalized(string sheet, int row, int col)
+    {
         string key = CellKey(sheet, row, col);
         EvalValue cached;
         if (values.TryGetValue(key, out cached)) return cached;
@@ -303,7 +347,8 @@ class EvalContext
         EvalCell cell;
         if (!cells.TryGetValue(key, out cell))
         {
-            EnsureRange(sheet, row, col, row, col);
+            if (!IsCovered(sheet, row, col, row, col))
+                EnsureRange(sheet, row, col, row, col);
             cells.TryGetValue(key, out cell);
         }
         if (cell == null) return EvalValue.Empty;
@@ -346,13 +391,14 @@ class EvalContext
         if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
         if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
 
-        EnsureRange(sheet, r1, c1, r2, c2);
+        if (!IsCovered(sheet, r1, c1, r2, c2))
+            EnsureRange(sheet, r1, c1, r2, c2);
         int rows = r2 - r1 + 1;
         int cols = c2 - c1 + 1;
         EvalValue[,] arr = new EvalValue[rows, cols];
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++)
-                arr[r, c] = GetCell(sheet, r1 + r, c1 + c);
+                arr[r, c] = GetCellNormalized(sheet, r1 + r, c1 + c);
         EvalValue range = EvalValue.RangeValue(arr);
         range.StartRow = r1;
         range.StartCol = c1;
@@ -400,9 +446,7 @@ class EvalContext
 
     void EnsureRange(string sheet, int r1, int c1, int r2, int c2)
     {
-        string key = RangeKey(sheet, r1, c1, r2, c2);
-        if (loaded.Contains(key)) return;
-        loaded.Add(key);
+        if (IsCovered(sheet, r1, c1, r2, c2)) return;
 
         SheetInfo sh = FindSheet(sheet);
         if (sh == null) return;
@@ -414,8 +458,290 @@ class EvalContext
             c.T = type;
             c.F = f;
             c.Style = styleIndex;
+            c.Sheet = sheet;
+            c.Row = row;
+            c.Col = col;
             cells[CellKey(sheet, row, col)] = c;
         });
+
+        LoadedRange range = new LoadedRange();
+        range.Sheet = sheet;
+        range.R1 = r1;
+        range.C1 = c1;
+        range.R2 = r2;
+        range.C2 = c2;
+        loadedRanges.Add(range);
+    }
+
+    bool IsCovered(string sheet, int r1, int c1, int r2, int c2)
+    {
+        for (int i = 0; i < loadedRanges.Count; i++)
+        {
+            LoadedRange r = loadedRanges[i];
+            if (!string.Equals(r.Sheet, sheet, StringComparison.OrdinalIgnoreCase)) continue;
+            if (r1 >= r.R1 && c1 >= r.C1 && r2 <= r.R2 && c2 <= r.C2) return true;
+        }
+        return false;
+    }
+
+    void Prepare(EvalNode root, string rootSheet)
+    {
+        nodes.Clear();
+        astCache.Clear();
+
+        List<EvalRangeRef> refs = new List<EvalRangeRef>();
+        root.CollectRefs(this, rootSheet, refs);
+        LoadRanges(refs);
+        BuildFormulaGraph(refs);
+        EvaluateGraph();
+    }
+
+    void LoadRanges(List<EvalRangeRef> refs)
+    {
+        Dictionary<string, List<EvalRangeRef>> grouped = new Dictionary<string, List<EvalRangeRef>>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < refs.Count; i++)
+        {
+            EvalRangeRef r = refs[i];
+            string sheet = NormalizeSheet(r.Sheet);
+            if (sheet == null) continue;
+
+            List<EvalRangeRef> list;
+            if (!grouped.TryGetValue(sheet, out list))
+            {
+                list = new List<EvalRangeRef>();
+                grouped[sheet] = list;
+            }
+
+            EvalRangeRef copy = new EvalRangeRef();
+            copy.Sheet = sheet;
+            copy.R1 = r.R1;
+            copy.C1 = r.C1;
+            copy.R2 = r.R2;
+            copy.C2 = r.C2;
+            list.Add(copy);
+        }
+
+        foreach (KeyValuePair<string, List<EvalRangeRef>> pair in grouped)
+        {
+            List<EvalRangeRef> merged = MergeRanges(pair.Value);
+            for (int i = 0; i < merged.Count; i++)
+            {
+                EvalRangeRef r = merged[i];
+                EnsureRange(r.Sheet, r.R1, r.C1, r.R2, r.C2);
+            }
+        }
+    }
+
+    static List<EvalRangeRef> MergeRanges(List<EvalRangeRef> ranges)
+    {
+        ranges.Sort(delegate (EvalRangeRef a, EvalRangeRef b)
+        {
+            int cmp = a.R1.CompareTo(b.R1);
+            if (cmp != 0) return cmp;
+            return a.C1.CompareTo(b.C1);
+        });
+
+        List<EvalRangeRef> result = new List<EvalRangeRef>();
+        EvalRangeRef current = null;
+
+        for (int i = 0; i < ranges.Count; i++)
+        {
+            EvalRangeRef r = ranges[i];
+            if (current == null)
+            {
+                current = CloneRange(r);
+                continue;
+            }
+
+            bool adjacentRows = r.R1 <= current.R2 + 1 && r.R2 >= current.R1 - 1;
+            bool adjacentCols = r.C1 <= current.C2 + 1 && r.C2 >= current.C1 - 1;
+            if (adjacentRows && adjacentCols)
+            {
+                if (r.R1 < current.R1) current.R1 = r.R1;
+                if (r.C1 < current.C1) current.C1 = r.C1;
+                if (r.R2 > current.R2) current.R2 = r.R2;
+                if (r.C2 > current.C2) current.C2 = r.C2;
+            }
+            else
+            {
+                result.Add(current);
+                current = CloneRange(r);
+            }
+        }
+
+        if (current != null) result.Add(current);
+        return result;
+    }
+
+    static EvalRangeRef CloneRange(EvalRangeRef r)
+    {
+        EvalRangeRef copy = new EvalRangeRef();
+        copy.Sheet = r.Sheet;
+        copy.R1 = r.R1;
+        copy.C1 = r.C1;
+        copy.R2 = r.R2;
+        copy.C2 = r.C2;
+        return copy;
+    }
+
+    void AddFormulaCells(List<EvalRangeRef> refs, Queue<EvalCell> pending, HashSet<string> seen)
+    {
+        for (int i = 0; i < refs.Count; i++)
+        {
+            EvalRangeRef r = refs[i];
+            string sheet = NormalizeSheet(r.Sheet);
+            if (sheet == null) continue;
+
+            for (int row = r.R1; row <= r.R2; row++)
+            {
+                for (int col = r.C1; col <= r.C2; col++)
+                {
+                    string key = CellKey(sheet, row, col);
+                    EvalCell cell;
+                    if (!cells.TryGetValue(key, out cell)) continue;
+                    if (cell.F == null || cell.F.Length == 0) continue;
+                    if (cell.V != null && cell.V.Length > 0) continue;
+                    if (!seen.Add(key)) continue;
+
+                    EvalDepNode node = new EvalDepNode();
+                    node.Key = key;
+                    node.Sheet = sheet;
+                    node.Row = row;
+                    node.Col = col;
+                    nodes[key] = node;
+                    pending.Enqueue(cell);
+                }
+            }
+        }
+    }
+
+    void BuildFormulaGraph(List<EvalRangeRef> rootRefs)
+    {
+        Queue<EvalCell> pending = new Queue<EvalCell>();
+        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        AddFormulaCells(rootRefs, pending, seen);
+
+        while (pending.Count > 0)
+        {
+            EvalCell cell = pending.Dequeue();
+            string key = CellKey(cell.Sheet, cell.Row, cell.Col);
+            EvalNode ast;
+            if (!astCache.TryGetValue(key, out ast))
+            {
+                try
+                {
+                    ast = EvalParser.Parse(cell.F);
+                }
+                catch (EvalParseException)
+                {
+                    ast = null;
+                }
+                astCache[key] = ast;
+            }
+
+            EvalDepNode node;
+            if (nodes.TryGetValue(key, out node)) node.Ast = ast;
+
+            List<EvalRangeRef> refs = new List<EvalRangeRef>();
+            if (ast != null) ast.CollectRefs(this, cell.Sheet, refs);
+            LoadRanges(refs);
+            AddFormulaCells(refs, pending, seen);
+        }
+
+        foreach (EvalDepNode node in nodes.Values)
+        {
+            EvalNode ast;
+            if (!astCache.TryGetValue(node.Key, out ast) || ast == null) continue;
+
+            List<EvalRangeRef> refs = new List<EvalRangeRef>();
+            ast.CollectRefs(this, node.Sheet, refs);
+            HashSet<string> deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < refs.Count; i++)
+            {
+                EvalRangeRef r = refs[i];
+                string sheet = NormalizeSheet(r.Sheet);
+                if (sheet == null) continue;
+
+                for (int row = r.R1; row <= r.R2; row++)
+                {
+                    for (int col = r.C1; col <= r.C2; col++)
+                    {
+                        string depKey = CellKey(sheet, row, col);
+                        if (nodes.ContainsKey(depKey)) deps.Add(depKey);
+                    }
+                }
+            }
+
+            node.Dependencies.Clear();
+            node.Dependencies.AddRange(deps);
+        }
+
+        foreach (EvalDepNode node in nodes.Values)
+        {
+            for (int i = 0; i < node.Dependencies.Count; i++)
+            {
+                EvalDepNode dep;
+                if (nodes.TryGetValue(node.Dependencies[i], out dep))
+                    dep.Dependents.Add(node.Key);
+            }
+        }
+    }
+
+    void EvaluateGraph()
+    {
+        if (nodes.Count == 0) return;
+
+        Dictionary<string, int> indegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        Queue<string> ready = new Queue<string>();
+
+        foreach (EvalDepNode node in nodes.Values)
+        {
+            indegree[node.Key] = node.Dependencies.Count;
+            if (node.Dependencies.Count == 0) ready.Enqueue(node.Key);
+        }
+
+        HashSet<string> evaluated = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (ready.Count > 0)
+        {
+            string key = ready.Dequeue();
+            EvalDepNode node = nodes[key];
+            EvalValue value;
+
+            if (node.Ast == null)
+            {
+                value = EvalValue.Err("#NAME?");
+            }
+            else
+            {
+                try
+                {
+                    value = node.Ast.Eval(this, node.Sheet, node.Row, node.Col).Scalar();
+                }
+                catch (EvalParseException)
+                {
+                    value = EvalValue.Err("#NAME?");
+                }
+            }
+
+            values[key] = value;
+            evaluated.Add(key);
+
+            for (int i = 0; i < node.Dependents.Count; i++)
+            {
+                string dependent = node.Dependents[i];
+                indegree[dependent]--;
+                if (indegree[dependent] == 0) ready.Enqueue(dependent);
+            }
+        }
+
+        foreach (EvalDepNode node in nodes.Values)
+        {
+            if (!evaluated.Contains(node.Key))
+                values[node.Key] = EvalValue.Err("#REF!");
+        }
     }
 
     EvalValue CellToValue(EvalCell cell)
@@ -929,6 +1255,7 @@ class EvalParserImpl
 abstract class EvalNode
 {
     public abstract EvalValue Eval(EvalContext ctx, string sheet, int row, int col);
+    public abstract void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs);
 }
 
 class EvalLiteralNode : EvalNode
@@ -936,6 +1263,7 @@ class EvalLiteralNode : EvalNode
     EvalValue value;
     public EvalLiteralNode(EvalValue value) { this.value = value; }
     public override EvalValue Eval(EvalContext ctx, string sheet, int row, int col) { return value; }
+    public override void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs) { }
 }
 
 class EvalRefNode : EvalNode
@@ -960,6 +1288,21 @@ class EvalRefNode : EvalNode
         if (name != null) return ctx.ResolveName(name, targetSheet);
         if (r1 == r2 && c1 == c2) return ctx.GetCell(targetSheet, r1, c1);
         return ctx.GetRange(targetSheet, r1, c1, r2, c2);
+    }
+
+    public override void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs)
+    {
+        string targetSheet;
+        int br1, bc1, br2, bc2;
+        if (!TryGetBounds(ctx, currentSheet, out targetSheet, out br1, out bc1, out br2, out bc2)) return;
+
+        EvalRangeRef r = new EvalRangeRef();
+        r.Sheet = targetSheet;
+        r.R1 = br1;
+        r.C1 = bc1;
+        r.R2 = br2;
+        r.C2 = bc2;
+        refs.Add(r);
     }
 
     public bool TryGetBounds(EvalContext ctx, string currentSheet,
@@ -987,6 +1330,11 @@ class EvalUnaryNode : EvalNode
     {
         this.op = op;
         this.arg = arg;
+    }
+
+    public override void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs)
+    {
+        arg.CollectRefs(ctx, currentSheet, refs);
     }
 
     public override EvalValue Eval(EvalContext ctx, string sheet, int row, int col)
@@ -1024,6 +1372,12 @@ class EvalBinaryNode : EvalNode
         this.op = op;
         this.left = left;
         this.right = right;
+    }
+
+    public override void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs)
+    {
+        left.CollectRefs(ctx, currentSheet, refs);
+        right.CollectRefs(ctx, currentSheet, refs);
     }
 
     public override EvalValue Eval(EvalContext ctx, string sheet, int row, int col)
@@ -1193,6 +1547,12 @@ class EvalFunctionNode : EvalNode
     {
         this.name = name;
         this.args = args;
+    }
+
+    public override void CollectRefs(EvalContext ctx, string currentSheet, List<EvalRangeRef> refs)
+    {
+        for (int i = 0; i < args.Count; i++)
+            args[i].CollectRefs(ctx, currentSheet, refs);
     }
 
     EvalValue Arg(EvalContext ctx, string sheet, int row, int col, int i)

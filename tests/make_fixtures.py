@@ -84,6 +84,34 @@ def make_xlsx(path):
     wb.save(path)
 
 
+def make_graph(path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Graph"
+
+    ws["A1"] = 1
+    ws["A2"] = "=A1+1"
+    ws["A3"] = "=A2*2"
+    ws["B1"] = "=SUM(A1:A3)"
+    ws["B2"] = "=B1+A3"
+    ws["B3"] = "=B2-A1"
+
+    # A deliberate circular chain.
+    ws["C1"] = "=C2+1"
+    ws["C2"] = "=C1+1"
+    ws["C3"] = "=C1"
+
+    ws["D1"] = "=IF(B2>10,B2,B3)"
+    ws["D2"] = "=D1*2"
+    ws["E1"] = "=SUM(A1:A3)+SUM(B1:B2)"
+    ws["F1"] = "=E1+B3"
+
+    ws2 = wb.create_sheet("Other")
+    ws2["A1"] = "=Graph!B2"
+    ws2["A2"] = "=Graph!C1"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook()
     ws = wb.add_sheet("Data")
@@ -103,5 +131,6 @@ if __name__ == "__main__":
     out = os.path.join(here, "fixtures")
     os.makedirs(out, exist_ok=True)
     make_xlsx(os.path.join(out, "eval.xlsx"))
+    make_graph(os.path.join(out, "graph.xlsx"))
     make_xls(os.path.join(out, "eval.xls"))
-    print("wrote tests/fixtures/eval.xlsx and eval.xls")
+    print("wrote tests/fixtures/eval.xlsx, graph.xlsx and eval.xls")

@@ -162,6 +162,50 @@ public class XqTests
     }
 
     [Theory]
+    [InlineData("=C1", "3")]
+    [InlineData("=C2", "6")]
+    [InlineData("=C3", "yes")]
+    [InlineData("=D1", "1x")]
+    [InlineData("=G2", "2024")]
+    [InlineData("=J2", "6")]
+    [InlineData("=J3", "12")]
+    [InlineData("=J4", "10")]
+    [InlineData("=C1+C2", "9")]
+    [InlineData("=SUM(C1:C2)", "9")]
+    public void FormulaCells(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("eval.xlsx", "Data", expr));
+    }
+
+    [Theory]
+    [InlineData("=A2", "2")]
+    [InlineData("=A3", "4")]
+    [InlineData("=B1", "7")]
+    [InlineData("=B2", "11")]
+    [InlineData("=B3", "10")]
+    [InlineData("=D1", "11")]
+    [InlineData("=D2", "22")]
+    [InlineData("=E1", "25")]
+    [InlineData("=F1", "35")]
+    [InlineData("=SUM(B1:B2)", "18")]
+    [InlineData("=Other!A1", "11")]
+    public void GraphOrder(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("graph.xlsx", "Graph", expr));
+    }
+
+    [Theory]
+    [InlineData("=C1", "#REF!")]
+    [InlineData("=C2", "#REF!")]
+    [InlineData("=C3", "#REF!")]
+    [InlineData("=SUM(C1:C2)", "#REF!")]
+    [InlineData("=Other!A2", "#REF!")]
+    public void GraphCycles(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("graph.xlsx", "Graph", expr));
+    }
+
+    [Theory]
     [InlineData("=NA()", "#N/A")]
     [InlineData("=1/0", "#DIV/0!")]
     [InlineData("=UNKNOWN(1)", "#NAME?")]

@@ -224,7 +224,9 @@ xq eval book.xlsx -e "=A1+B1"
   - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
   - その他: `TRUE`, `FALSE`, `NA`, `PI`
 - セルの値は、まずファイルに保存されている**キャッシュ値**を使います。
-  数式セルにキャッシュ値がない場合は、その数式を再帰的に評価します。
+  キャッシュ値のない数式セルは、参照関係から**依存関係グラフ**を作り、
+  依存先から順に（Kahn のトポロジカルソートで）評価します。循環参照は `#REF!` です。
+- 参照範囲はシート単位でまとめて読み込むため、同じ範囲を何度も走査しません。
 - `--json` を付けると `{"v":...,"t":"n|s|b|e|z|a"}` を出力します。
   `--text` を付けると `"text"` も追加します。
 - エラー値: `#DIV/0!`, `#VALUE!`, `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#NULL!`
@@ -238,6 +240,7 @@ xq eval book.xlsx -e "=A1+B1"
 - `INDIRECT` は `A1` 形式のみ対応し、`R1C1` と外部ブック参照は `#REF!` になります。
 - `_xlfn.*` の新しい関数は、実装済みのもの以外は `#NAME?` になります。
 - キャッシュ値がある数式セルは再計算しません（将来 `--recalc` を検討）。
+- `INDIRECT` など実行時に決まる参照は依存関係グラフに静的に含めず、評価時にフォールバックします。
 - Rust 版 `xq-rs` には `-e` はまだ実装していません。
 
 ## テスト
@@ -246,10 +249,11 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（149ケース。参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（175ケース。参照、演算、関数、エラー、日付、依存関係グラフ、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `eval.xls` の再生成
+- `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `eval.xls` の再生成
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1
