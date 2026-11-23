@@ -112,6 +112,33 @@ def make_graph(path):
     wb.save(path)
 
 
+def make_types(path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Types"
+
+    # Text "02" (Excel's Text format) versus the number 2 in General,
+    # and the number 2 displayed with a custom 00 format.
+    ws["A1"] = "02"
+    ws["A1"].number_format = "@"
+    ws["A2"] = 2
+    ws["A2"].number_format = "General"
+    ws["A3"] = 2
+    ws["A3"].number_format = "00"
+
+    ws["A4"] = "=A1"
+    ws["A5"] = "=A2"
+    ws["A6"] = "=A3"
+    ws["A7"] = '=TEXT(A2,"00")'
+
+    ws["B1"] = '="02"'
+    ws["B2"] = "=02"
+    ws["B3"] = '=VALUE(A1)'
+    ws["B4"] = "=ISTEXT(A1)"
+    ws["B5"] = "=ISNUMBER(A2)"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook()
     ws = wb.add_sheet("Data")
@@ -132,5 +159,6 @@ if __name__ == "__main__":
     os.makedirs(out, exist_ok=True)
     make_xlsx(os.path.join(out, "eval.xlsx"))
     make_graph(os.path.join(out, "graph.xlsx"))
+    make_types(os.path.join(out, "types.xlsx"))
     make_xls(os.path.join(out, "eval.xls"))
-    print("wrote tests/fixtures/eval.xlsx, graph.xlsx and eval.xls")
+    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx and eval.xls")

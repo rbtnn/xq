@@ -85,6 +85,13 @@ $cliCases = @(
     @{ File = "tests\fixtures\graph.xlsx"; Expr = "=B2"; Expected = "11" },
     @{ File = "tests\fixtures\graph.xlsx"; Expr = "=Other!A1"; Expected = "11" },
     @{ File = "tests\fixtures\graph.xlsx"; Expr = "=C1"; Expected = "#REF!" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = '="02"'; Expected = "02" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = "=02"; Expected = "2" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = '=TEXT(2,"00")'; Expected = "02" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = '=VALUE("02")'; Expected = "2" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = "=A1"; Expected = "02" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = "=A2"; Expected = "2" },
+    @{ File = "tests\fixtures\types.xlsx"; Expr = "=A3"; Expected = "2" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }
@@ -111,6 +118,28 @@ if ($r.Code -eq 0) {
 } else {
     $failures++
     Write-Host ("JSON FAIL: exit={0} err={1}" -f $r.Code, $r.Err)
+}
+
+$r = Invoke-Xq 'cells tests\fixtures\types.xlsx --text --json'
+if ($r.Code -eq 0) {
+    try {
+        $arr = $r.Out | ConvertFrom-Json
+        $a1 = ($arr | Where-Object { $_.ref -eq "A1" }).text
+        $a2 = ($arr | Where-Object { $_.ref -eq "A2" }).text
+        $a3 = ($arr | Where-Object { $_.ref -eq "A3" }).text
+        if ($a1 -ne "02" -or $a2 -ne "2" -or $a3 -ne "02") {
+            $failures++
+            Write-Host ("TEXT FAIL: A1=[{0}] A2=[{1}] A3=[{2}]" -f $a1, $a2, $a3)
+        } else {
+            Write-Host ("TEXT OK:   A1={0} A2={1} A3={2}" -f $a1, $a2, $a3)
+        }
+    } catch {
+        $failures++
+        Write-Host ("TEXT FAIL: {0}" -f $r.Out)
+    }
+} else {
+    $failures++
+    Write-Host ("TEXT FAIL: exit={0} err={1}" -f $r.Code, $r.Err)
 }
 
 $r = Invoke-Xq 'tests\fixtures\eval.xlsx -e "=A1+"'

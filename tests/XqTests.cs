@@ -206,6 +206,41 @@ public class XqTests
     }
 
     [Theory]
+    [InlineData("=A1", "02")]
+    [InlineData("=A2", "2")]
+    [InlineData("=A3", "2")]
+    [InlineData("=A4", "02")]
+    [InlineData("=A5", "2")]
+    [InlineData("=A6", "2")]
+    [InlineData("=A7", "02")]
+    [InlineData("=B1", "02")]
+    [InlineData("=B2", "2")]
+    [InlineData("=B3", "2")]
+    [InlineData("=B4", "TRUE")]
+    [InlineData("=B5", "TRUE")]
+    [InlineData("=TEXT(2,\"00\")", "02")]
+    [InlineData("=TEXT(2,\"#,##0.00\")", "2.00")]
+    [InlineData("=TEXT(A2,\"00\")", "02")]
+    [InlineData("=VALUE(\"02\")", "2")]
+    [InlineData("=ISTEXT(\"02\")", "TRUE")]
+    [InlineData("=ISNUMBER(02)", "TRUE")]
+    [InlineData("=A1+0", "2")]
+    public void TextVsNumber(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("types.xlsx", "Types", expr));
+    }
+
+    [Fact]
+    public void NumberFormatTextVsGeneral()
+    {
+        Assert.Equal("02", NumFmt.FormatText("02", "@"));
+        Assert.Equal("02", NumFmt.FormatText("02", "General"));
+        Assert.Equal("02", NumFmt.FormatText("02", "00"));
+        Assert.Equal("2", NumFmt.Format(2, "General", false));
+        Assert.Equal("02", NumFmt.Format(2, "00", false));
+    }
+
+    [Theory]
     [InlineData("=NA()", "#N/A")]
     [InlineData("=1/0", "#DIV/0!")]
     [InlineData("=UNKNOWN(1)", "#NAME?")]

@@ -195,6 +195,20 @@ xq cells book.xlsx --text
 注意: Excel の `Range.Text` は**列幅**に依存します（狭いと `####`）。
 ここで出るのは `TEXT()` 相当の決定的な文字列で、列幅は考慮しません。
 
+文字列と数値は区別します。たとえば:
+
+```bat
+:: セルに文字列 "02"（表示形式 @）
+:: -> {"v":"02","t":"s","text":"02"}
+:: セルに数値 2（表示形式 General）
+:: -> {"v":2,"t":"n","text":"2"}
+:: セルに数値 2（表示形式 00）
+:: -> {"v":2,"t":"n","text":"02"}
+```
+
+`-e` はセルの**値**を返すため、セルの表示形式は適用しません。
+表示形式込みの文字列が必要な場合は `xq cells --text` を使ってください。
+
 
 
 ## 式評価（`-e` / `eval`）
@@ -223,6 +237,7 @@ xq eval book.xlsx -e "=A1+B1"
   - 間接参照: `INDIRECT`
   - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
   - その他: `TRUE`, `FALSE`, `NA`, `PI`
+- 文字列 `"02"` と数値 `02` は区別します。`="02"` は文字列 `02`、`=02` は数値 `2` です。
 - セルの値は、まずファイルに保存されている**キャッシュ値**を使います。
   キャッシュ値のない数式セルは、参照関係から**依存関係グラフ**を作り、
   依存先から順に（Kahn のトポロジカルソートで）評価します。循環参照は `#REF!` です。
@@ -249,11 +264,12 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（175ケース。参照、演算、関数、エラー、日付、依存関係グラフ、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（195ケース。参照、演算、関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
 - `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `eval.xls` の再生成
+- `tests/fixtures/types.xlsx` … 文字列 `"02"` / 数値 `2` / 表示形式 `00` のテスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `eval.xls` の再生成
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1
