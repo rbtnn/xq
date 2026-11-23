@@ -14,13 +14,14 @@ xq/
 ├── samples/      20,000行 × 30列 の xlsx / xls サンプル
 ├── bench/        COM ベンチマーク用 C# プログラム
 ├── bench.ps1     C# / Rust / COM のベンチマーク
+├── tests/        `-e` の評価テストと CLI テスト
 └── README.md
 ```
 
 - **C# 5 のみ**（文字列補間・`?.`・`nameof`・パターンマッチ等は不使用）
 - **Windows 同梱の `csc.exe` だけでビルド**（.NET SDK / Roslyn 不要）
 - 出力は **NDJSON / JSON** → 絞り込みは `jq` に任せる（jq を再発明しない）
-- 実行ファイルは **約 86 KB**、.NET Framework 4.5+（Windows 10/11 に同梱）
+- 実行ファイルは **約 108 KB**、.NET Framework 4.5+（Windows 10/11 に同梱）
 
 ## ビルド
 
@@ -35,7 +36,8 @@ csc /nologo /optimize+ /target:exe /out:xq.exe ^
     /r:System.dll /r:System.Core.dll /r:System.Xml.dll ^
     /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
     src\A1.cs src\Cfb.cs src\Ovba.cs src\Xlsx.cs src\NumFmt.cs ^
-    src\IBook.cs src\Ptg.cs src\Ptg12.cs src\Biff8.cs src\XlsbBook.cs src\xq.cs
+    src\IBook.cs src\Ptg.cs src\Ptg12.cs src\Biff8.cs src\XlsbBook.cs ^
+    src\Eval.cs src\xq.cs
 ```
 
 ## 使い方
@@ -74,6 +76,12 @@ xq cells book.xls  --formulas --json
 xq names book.xlsb --json
 xq vba   book.xls
 xq info  book.xls
+
+:: 式評価（C# 版のみ）
+xq book.xlsx -e "=A1"
+xq book.xlsx -e "=SUM(A1:A10)"
+xq book.xlsx --json -e "=IF(A1>0,\"OK\",\"NG\")"
+xq eval book.xlsx -e "=A1+B1"
 ```
 
 jq との組み合わせ:
@@ -185,6 +193,56 @@ xq cells book.xlsx --text
 注意: Excel の `Range.Text` は**列幅**に依存します（狭いと `####`）。
 ここで出るのは `TEXT()` 相当の決定的な文字列で、列幅は考慮しません。
 
+
+
+## 式評価（`-e` / `eval`）
+
+C# 版では、Excel を起動せずにセル参照や簡単な数式を評価できます。
+
+```bat
+xq book.xlsx -e "=A1"
+xq book.xlsx -e "=A1+B1"
+xq book.xlsx -e "=SUM(A1:A10)"
+xq book.xlsx --json -e "=IF(A1>0,\"OK\",\"NG\")"
+xq eval book.xlsx -e "=A1+B1"
+```
+
+- `xq <file> -e EXPR` と `xq eval <file> -e EXPR` は同じ動作です。
+- 参照: `A1`, `$A$1`, `Sheet1!A1`, `'Sheet 1'!A1`, `A1:B2`, 名前定義
+- 演算子: `+ - * / ^ &`、比較（`= <> < <= > >=`）、`%`、括弧
+- 関数:
+  - 集計: `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `COUNTA`
+  - 条件: `IF`, `IFERROR`, `AND`, `OR`, `NOT`
+  - 数学: `ABS`, `INT`, `MOD`, `POWER`, `SQRT`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`
+  - 文字列: `LEN`, `LEFT`, `RIGHT`, `MID`, `TRIM`, `UPPER`, `LOWER`, `CONCATENATE`, `VALUE`, `TEXT`
+  - 判定: `ISBLANK`, `ISNUMBER`, `ISTEXT`, `ISERROR`, `ISNA`
+  - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
+  - その他: `TRUE`, `FALSE`, `NA`, `PI`
+- セルの値は、まずファイルに保存されている**キャッシュ値**を使います。
+  数式セルにキャッシュ値がない場合は、その数式を再帰的に評価します。
+- `--json` を付けると `{"v":...,"t":"n|s|b|e|z|a"}` を出力します。
+  `--text` を付けると `"text"` も追加します。
+- エラー値: `#DIV/0!`, `#VALUE!`, `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#NULL!`
+
+制限:
+
+- Excel の完全互換ではありません。
+- `VLOOKUP` / `INDEX` / `MATCH` / `SUMIF` / `COUNTIF` などは未実装です。
+- 配列数式、スピル、3D参照、外部ブック参照、volatile 関数は未対応です。
+- `_xlfn.*` の新しい関数は、実装済みのもの以外は `#NAME?` になります。
+- キャッシュ値がある数式セルは再計算しません（将来 `--recalc` を検討）。
+- Rust 版 `xq-rs` には `-e` はまだ実装していません。
+
+## テスト
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1
+```
+
+- `tests/EvalTests.cs` … 評価器の直接テスト（参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/run_tests.ps1` … `EvalTests.exe` のビルドと CLI スモークテスト
+- `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `eval.xls` の再生成
 
 ## バイナリ形式（.xlsb / .xls）
 

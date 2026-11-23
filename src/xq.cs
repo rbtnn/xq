@@ -22,6 +22,7 @@ class Program
         if (cmd == "--version" || cmd == "-V") { Console.WriteLine(VERSION); return 0; }
 
         string file = null;
+        string expr = null;
         string sheetOpt = null;
         string rangeOpt = null;
         string moduleOpt = null;
@@ -32,6 +33,14 @@ class Program
         bool all = false;
         bool text = false;
         int limitOpt = -1;
+
+        bool knownCommand = cmd == "sheets" || cmd == "cells" || cmd == "names"
+            || cmd == "vba" || cmd == "info" || cmd == "eval";
+        if (!knownCommand && !cmd.StartsWith("-"))
+        {
+            file = cmd;
+            cmd = "eval";
+        }
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -70,6 +79,11 @@ class Program
                     return 2;
                 }
             }
+            else if (a == "-e" || a == "--expr")
+            {
+                if (i + 1 >= args.Length) { Console.Error.WriteLine("-e needs a value"); return 2; }
+                expr = args[++i];
+            }
             else if (a == "--json") json = true;
             else if (a == "--formulas") formulas = true;
             else if (a == "--all") all = true;
@@ -90,6 +104,7 @@ class Program
         {
             if (cmd == "sheets") return CmdSheets(file);
             if (cmd == "cells") return CmdCells(file, sheetOpt, rangeOpt, json, formulas, all, text, limitOpt);
+            if (cmd == "eval") return CmdEval(file, expr, sheetOpt, json, text);
             if (cmd == "names") return CmdNames(file, nameOpt, sheetOpt, grepOpt, json);
             if (cmd == "vba") return CmdVba(file, moduleOpt);
             if (cmd == "info") return CmdInfo(file);
@@ -295,6 +310,59 @@ class Program
         return 0;
     }
 
+    static int CmdEval(string file, string expr, string sheetOpt, bool json, bool text)
+    {
+        if (expr == null)
+        {
+            Console.Error.WriteLine("missing -e expression");
+            return 2;
+        }
+
+        IBook x = Book.Open(file);
+        try
+        {
+            EvalContext ctx = new EvalContext(x, sheetOpt);
+            EvalValue v;
+            try
+            {
+                v = ctx.Evaluate(expr);
+            }
+            catch (EvalParseException ex)
+            {
+                Console.Error.WriteLine("xq: " + ex.Message);
+                return 2;
+            }
+
+            StreamWriter sw = Out();
+            if (json)
+            {
+                StringBuilder sb = new StringBuilder(128);
+                sb.Append("{\"v\":");
+                EvalJson.AppendValue(sb, v);
+                sb.Append(",\"t\":\"");
+                sb.Append(v.TypeCode());
+                sb.Append('"');
+                if (text)
+                {
+                    sb.Append(",\"text\":");
+                    EvalJson.AppendString(sb, v.ToDisplayString());
+                }
+                sb.Append('}');
+                sw.WriteLine(sb.ToString());
+            }
+            else
+            {
+                sw.WriteLine(v.ToDisplayString());
+            }
+            sw.Flush();
+            return 0;
+        }
+        finally
+        {
+            x.Dispose();
+        }
+    }
+
     static int CmdNames(string file, string nameOpt, string sheetOpt, string grepOpt, bool json)
     {
         IBook x = Book.Open(file);
@@ -493,6 +561,8 @@ class Program
         Console.Error.WriteLine("         --all                  include empty cells (\"v\":null)");
         Console.Error.WriteLine("         --text                 add \"text\" (Excel-style display string)");
         Console.Error.WriteLine("         --limit N              stop after N emitted cells");
+        Console.Error.WriteLine("  eval   <file> -e EXPR        evaluate an Excel expression (e.g. -e \"=A1+B1\")");
+        Console.Error.WriteLine("  <file> -e EXPR               same as eval (xq book.xlsx -e \"=A1\")");
         Console.Error.WriteLine("  names  <file>                 defined names (named ranges) as NDJSON");
         Console.Error.WriteLine("         --name NAME            exact name");
         Console.Error.WriteLine("         --grep TEXT            substring in name / ref / comment");

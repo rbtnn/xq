@@ -3,3 +3,8 @@ rust/target/
 *.user
 .DS_Store
 Thumbs.db
+
+tests/EvalTests.exe
+tests/out.txt
+tests/err.txt
+tests/__pycache__/

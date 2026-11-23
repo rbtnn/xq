@@ -53,7 +53,7 @@ static class A1
         if (i == start) return false;
 
         row = int.Parse(s.Substring(start, i - start), CultureInfo.InvariantCulture);
-        return true;
+        return i == s.Length;
     }
 
     public static bool TryParseRange(string s, out int r1, out int c1, out int r2, out int c2)
