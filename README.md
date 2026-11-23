@@ -216,9 +216,9 @@ xq eval book.xlsx -e "=A1+B1"
   - 集計: `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `COUNTA`
   - 条件: `IF`, `IFERROR`, `AND`, `OR`, `NOT`
   - 数学: `ABS`, `INT`, `MOD`, `POWER`, `SQRT`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`
-  - 文字列: `LEN`, `LEFT`, `RIGHT`, `MID`, `TRIM`, `UPPER`, `LOWER`, `CONCATENATE`, `VALUE`, `TEXT`
+  - 文字列: `LEN`, `LEFT`, `RIGHT`, `MID`, `TRIM`, `UPPER`, `LOWER`, `CONCATENATE`, `VALUE`, `TEXT`, `SUBSTITUTE`, `REPLACE`
   - 判定: `ISBLANK`, `ISNUMBER`, `ISTEXT`, `ISERROR`, `ISNA`
-  - 検索: `VLOOKUP`, `INDEX`, `MATCH`
+  - 検索・参照: `VLOOKUP`, `INDEX`, `MATCH`, `ADDRESS`, `ROW`, `COLUMN`, `ROWS`, `COLUMNS`
   - 条件集計: `SUMIF`, `COUNTIF`
   - 間接参照: `INDIRECT`
   - 日付: `DATE`, `YEAR`, `MONTH`, `DAY`
@@ -246,7 +246,7 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（149ケース。参照、演算、関数、エラー、日付、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
 - `tests/make_fixtures.py` … `eval.xlsx` / `eval.xls` の再生成

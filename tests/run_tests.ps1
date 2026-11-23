@@ -72,6 +72,13 @@ $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUMIF(A1:A3,">1",K1:K3)'; Expected = "50" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=COUNTIF(B1:B3,"*o*")'; Expected = "2" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=INDIRECT("A1:A3")'; Expected = "1" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=ADDRESS(2,3,4)"; Expected = "C2" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=ROW(A5:B7)"; Expected = "5" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=COLUMN(C3)"; Expected = "3" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=ROWS(A1:B3)"; Expected = "3" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=COLUMNS(A1:B3)"; Expected = "2" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUBSTITUTE("a-b-c","-","+",2)'; Expected = "a-b+c" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = '=REPLACE("abcdef",2,3,"X")'; Expected = "aXef" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

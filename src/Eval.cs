@@ -25,6 +25,8 @@ class EvalValue
     public EvalValue[,] Cells;
     public int Rows;
     public int Cols;
+    public int StartRow;
+    public int StartCol;
 
     public static readonly EvalValue Empty = MakeEmpty();
     public static readonly EvalValue True = MakeBool(true);
@@ -351,7 +353,10 @@ class EvalContext
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++)
                 arr[r, c] = GetCell(sheet, r1 + r, c1 + c);
-        return EvalValue.RangeValue(arr);
+        EvalValue range = EvalValue.RangeValue(arr);
+        range.StartRow = r1;
+        range.StartCol = c1;
+        return range;
     }
 
     public EvalValue ResolveName(string name, string sheet)
@@ -385,6 +390,12 @@ class EvalContext
             }
         }
         return EvalValue.Err("#NAME?");
+    }
+
+    public bool TryResolveNameBounds(string name, string sheet,
+        out string targetSheet, out int r1, out int c1, out int r2, out int c2)
+    {
+        return book.TryResolveNameRange(name, sheet, out targetSheet, out r1, out c1, out r2, out c2);
     }
 
     void EnsureRange(string sheet, int r1, int c1, int r2, int c2)
@@ -950,6 +961,21 @@ class EvalRefNode : EvalNode
         if (r1 == r2 && c1 == c2) return ctx.GetCell(targetSheet, r1, c1);
         return ctx.GetRange(targetSheet, r1, c1, r2, c2);
     }
+
+    public bool TryGetBounds(EvalContext ctx, string currentSheet,
+        out string targetSheet, out int br1, out int bc1, out int br2, out int bc2)
+    {
+        if (name != null)
+            return ctx.TryResolveNameBounds(name, sheet != null ? sheet : currentSheet,
+                out targetSheet, out br1, out bc1, out br2, out bc2);
+
+        targetSheet = sheet != null ? sheet : currentSheet;
+        br1 = r1;
+        bc1 = c1;
+        br2 = r2;
+        bc2 = c2;
+        return true;
+    }
 }
 
 class EvalUnaryNode : EvalNode
@@ -1229,6 +1255,179 @@ class EvalFunctionNode : EvalNode
         if (fn == "FALSE") return EvalValue.False;
         if (fn == "NA") return EvalValue.Err("#N/A");
         if (fn == "PI") return EvalValue.Num(Math.PI);
+
+        if (fn == "ADDRESS")
+        {
+            if (args.Count < 2) return EvalValue.Err("#VALUE!");
+
+            EvalValue rowValue = Arg(ctx, sheet, row, col, 0);
+            if (rowValue.IsError) return rowValue;
+            EvalValue colValue = Arg(ctx, sheet, row, col, 1);
+            if (colValue.IsError) return colValue;
+
+            bool rowOk, colOk;
+            int rowNum = (int)rowValue.ToNumber(out rowOk);
+            int colNum = (int)colValue.ToNumber(out colOk);
+            if (!rowOk || !colOk || rowNum < 1 || colNum < 1) return EvalValue.Err("#VALUE!");
+
+            int absNum = 1;
+            if (args.Count >= 3)
+            {
+                EvalValue absValue = Arg(ctx, sheet, row, col, 2);
+                if (absValue.IsError) return absValue;
+                bool absOk;
+                absNum = (int)absValue.ToNumber(out absOk);
+                if (!absOk || absNum < 1 || absNum > 4) return EvalValue.Err("#VALUE!");
+            }
+
+            bool useA1 = true;
+            if (args.Count >= 4)
+            {
+                EvalValue a1Value = Arg(ctx, sheet, row, col, 3);
+                if (a1Value.IsError) return a1Value;
+                bool a1Ok;
+                useA1 = a1Value.ToBool(out a1Ok);
+                if (!a1Ok) return EvalValue.Err("#VALUE!");
+            }
+
+            string sheetText = null;
+            if (args.Count >= 5)
+            {
+                EvalValue sheetValue = Arg(ctx, sheet, row, col, 4);
+                if (sheetValue.IsError) return sheetValue;
+                sheetText = sheetValue.ToText();
+            }
+
+            string cell;
+            if (useA1)
+            {
+                string colName = A1.IndexToCol(colNum);
+                string rowText = rowNum.ToString(CultureInfo.InvariantCulture);
+                if (absNum == 1) cell = "$" + colName + "$" + rowText;
+                else if (absNum == 2) cell = colName + "$" + rowText;
+                else if (absNum == 3) cell = "$" + colName + rowText;
+                else cell = colName + rowText;
+            }
+            else
+            {
+                string rowText = rowNum.ToString(CultureInfo.InvariantCulture);
+                string colText = colNum.ToString(CultureInfo.InvariantCulture);
+                if (absNum == 1) cell = "R" + rowText + "C" + colText;
+                else if (absNum == 2) cell = "R" + rowText + "C[" + colText + "]";
+                else if (absNum == 3) cell = "R[" + rowText + "]C" + colText;
+                else cell = "R[" + rowText + "]C[" + colText + "]";
+            }
+
+            if (!string.IsNullOrEmpty(sheetText))
+                cell = QuoteSheet(sheetText) + "!" + cell;
+            return EvalValue.Str(cell);
+        }
+
+        if (fn == "ROW" || fn == "COLUMN")
+        {
+            if (args.Count == 0)
+            {
+                int index = fn == "ROW" ? row : col;
+                if (index <= 0) return EvalValue.Err("#VALUE!");
+                return EvalValue.Num(index);
+            }
+            if (args.Count > 1) return EvalValue.Err("#VALUE!");
+
+            if (args[0] is EvalRefNode)
+            {
+                EvalRefNode refNode = (EvalRefNode)args[0];
+                string targetSheet;
+                int r1, c1, r2, c2;
+                if (!refNode.TryGetBounds(ctx, sheet, out targetSheet, out r1, out c1, out r2, out c2))
+                    return EvalValue.Err("#NAME?");
+                return EvalValue.Num(fn == "ROW" ? r1 : c1);
+            }
+
+            EvalValue v = Arg(ctx, sheet, row, col, 0);
+            if (v.IsError) return v;
+            if (v.Kind == EvalKind.Range)
+                return EvalValue.Num(fn == "ROW" ? v.StartRow : v.StartCol);
+            return EvalValue.Err("#VALUE!");
+        }
+
+        if (fn == "ROWS" || fn == "COLUMNS")
+        {
+            if (args.Count < 1) return EvalValue.Err("#VALUE!");
+            EvalValue v = Arg(ctx, sheet, row, col, 0);
+            if (v.IsError) return v;
+            if (v.Kind == EvalKind.Range)
+                return EvalValue.Num(fn == "ROWS" ? v.Rows : v.Cols);
+            return EvalValue.Num(1);
+        }
+
+        if (fn == "SUBSTITUTE")
+        {
+            if (args.Count < 3) return EvalValue.Err("#VALUE!");
+
+            EvalValue textValue = Arg(ctx, sheet, row, col, 0);
+            if (textValue.IsError) return textValue;
+            EvalValue oldValue = Arg(ctx, sheet, row, col, 1);
+            if (oldValue.IsError) return oldValue;
+            EvalValue newValue = Arg(ctx, sheet, row, col, 2);
+            if (newValue.IsError) return newValue;
+
+            string text = textValue.ToText();
+            string oldText = oldValue.ToText();
+            string newText = newValue.ToText();
+
+            if (oldText.Length == 0) return EvalValue.Str(text);
+
+            int instance = 0;
+            if (args.Count >= 4)
+            {
+                EvalValue instanceValue = Arg(ctx, sheet, row, col, 3);
+                if (instanceValue.IsError) return instanceValue;
+                bool instanceOk;
+                instance = (int)instanceValue.ToNumber(out instanceOk);
+                if (!instanceOk || instance < 1) return EvalValue.Err("#VALUE!");
+            }
+
+            if (instance == 0) return EvalValue.Str(text.Replace(oldText, newText));
+
+            int from = 0;
+            int count = 0;
+            while (from <= text.Length)
+            {
+                int index = text.IndexOf(oldText, from, StringComparison.Ordinal);
+                if (index < 0) break;
+                count++;
+                if (count == instance)
+                    return EvalValue.Str(text.Substring(0, index) + newText + text.Substring(index + oldText.Length));
+                from = index + oldText.Length;
+            }
+            return EvalValue.Str(text);
+        }
+
+        if (fn == "REPLACE")
+        {
+            if (args.Count < 4) return EvalValue.Err("#VALUE!");
+
+            EvalValue textValue = Arg(ctx, sheet, row, col, 0);
+            if (textValue.IsError) return textValue;
+            EvalValue startValue = Arg(ctx, sheet, row, col, 1);
+            if (startValue.IsError) return startValue;
+            EvalValue countValue = Arg(ctx, sheet, row, col, 2);
+            if (countValue.IsError) return countValue;
+            EvalValue newValue = Arg(ctx, sheet, row, col, 3);
+            if (newValue.IsError) return newValue;
+
+            bool startOk, countOk;
+            int start = (int)startValue.ToNumber(out startOk);
+            int count = (int)countValue.ToNumber(out countOk);
+            if (!startOk || !countOk || start < 1 || count < 0) return EvalValue.Err("#VALUE!");
+
+            string text = textValue.ToText();
+            string newText = newValue.ToText();
+            int start0 = start - 1;
+            if (start0 > text.Length) start0 = text.Length;
+            if (count > text.Length - start0) count = text.Length - start0;
+            return EvalValue.Str(text.Substring(0, start0) + newText + text.Substring(start0 + count));
+        }
 
         if (fn == "INDIRECT")
         {
@@ -1711,6 +1910,23 @@ class EvalFunctionNode : EvalNode
         }
 
         return EvalValue.Err("#NAME?");
+    }
+
+    static string QuoteSheet(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        bool quote = false;
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            if (!char.IsLetterOrDigit(c) && c != '_')
+            {
+                quote = true;
+                break;
+            }
+        }
+        if (!quote) return s;
+        return "'" + s.Replace("'", "''") + "'";
     }
 
     static bool MatchLookup(EvalValue cell, EvalValue lookup)
