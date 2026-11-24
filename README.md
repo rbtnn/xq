@@ -224,7 +224,7 @@ xq eval book.xlsx -e "=A1+B1"
 ```
 
 - `xq <file> -e EXPR` と `xq eval <file> -e EXPR` は同じ動作です。
-- 参照: `A1`, `$A$1`, `Sheet1!A1`, `'Sheet 1'!A1`, `A1:B2`, 名前定義
+- 参照: `A1`, `$A$1`, `Sheet1!A1`, `'Sheet 1'!A1`, `A1:B2`, `F:H` / `$F:$H`（全列）, 名前定義
 - 演算子: `+ - * / ^ &`、比較（`= <> < <= > >=`）、`%`、括弧
 - 関数:
   - 集計: `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `COUNTA`
@@ -244,6 +244,8 @@ xq eval book.xlsx -e "=A1+B1"
   キャッシュ値のない数式セルは、参照関係から**依存関係グラフ**を作り、
   依存先から順に（Kahn のトポロジカルソートで）評価します。循環参照は `#REF!` です。
 - 参照範囲はシート単位でまとめて読み込むため、同じ範囲を何度も走査しません。
+- 全列参照（`F:H`, `$F:$H`）は、そのシートの使用範囲の最終行までに丸めて評価します。
+  Excel の 1,048,576 行全体をメモリに展開しません。
 - `--json` を付けると `{"v":...,"t":"n|s|b|e|z|a"}` を出力します。
   `--text` を付けると `"text"` も追加します。
 - エラー値: `#DIV/0!`, `#VALUE!`, `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#NULL!`
@@ -266,12 +268,13 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（213ケース。参照、演算、関数、入れ子関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（223ケース。参照、全列参照、演算、関数、入れ子関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
 - `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック
 - `tests/fixtures/types.xlsx` … 文字列 `"02"` / 数値 `2` / 表示形式 `00` のテスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `eval.xls` の再生成
+- `tests/fixtures/fullcol.xlsx` … `シート!$F:$H` のような全列参照のテスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `fullcol.xlsx` / `eval.xls` の再生成
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1

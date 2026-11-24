@@ -233,7 +233,13 @@ class Program
             {
                 SheetInfo sh = x.Sheets[i];
                 if (sheetOpt != null && !string.Equals(sh.Name, sheetOpt, StringComparison.Ordinal)) continue;
-                x.ReadCells(sh, r1, c1, r2, c2, sink);
+
+                int rr1 = r1;
+                int cc1 = c1;
+                int rr2 = r2;
+                int cc2 = c2;
+                ClampRange(x, sh, ref rr1, ref cc1, ref rr2, ref cc2);
+                x.ReadCells(sh, rr1, cc1, rr2, cc2, sink);
             }
         }
         catch (LimitReachedException)
@@ -484,6 +490,25 @@ class Program
     }
 
     // ------------------------------------------------------------ helpers
+
+    static void ClampRange(IBook x, SheetInfo sh, ref int r1, ref int c1, ref int r2, ref int c2)
+    {
+        if (r1 > 0 && r2 > 0 && c1 > 0 && c2 > 0) return;
+
+        int dr1, dc1, dr2, dc2;
+        string dim = x.GetDimension(sh);
+        if (!string.IsNullOrEmpty(dim) && A1.TryParseRange(dim, out dr1, out dc1, out dr2, out dc2))
+        {
+            if (r1 <= 0) r1 = dr1;
+            if (r2 <= 0) r2 = dr2;
+            if (c1 <= 0) c1 = dc1;
+            if (c2 <= 0) c2 = dc2;
+        }
+        if (r1 <= 0) r1 = 1;
+        if (r2 <= 0) r2 = 1;
+        if (c1 <= 0) c1 = 1;
+        if (c2 <= 0) c2 = 1;
+    }
 
     static string CellText(IBook x, int styleIndex, string val, string type)
     {

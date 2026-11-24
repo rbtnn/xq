@@ -58,6 +58,9 @@ function Check-Cli([string]$file, [string]$expr, [string]$expected) {
     }
 }
 
+# Build the Japanese sheet name without relying on the script encoding.
+$jpSheet = [string]([char]0x30B7) + [char]0x30FC + [char]0x30C8
+
 $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=A1"; Expected = "1" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=A1+A2"; Expected = "3" },
@@ -95,6 +98,8 @@ $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=IF(A1>0,SUM(A1:A3),MAX(A1:A3))"; Expected = "6" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=INDEX(A1:B3,MATCH(2,A1:A3,0),2)"; Expected = "World" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUM(INDIRECT(ADDRESS(1,1)&":"&ADDRESS(3,1)))'; Expected = "6" },
+    @{ File = "tests\fixtures\fullcol.xlsx"; Expr = ('=VLOOKUP(L100,' + $jpSheet + '!$F:$H,3,FALSE)'); Expected = "20" },
+    @{ File = "tests\fixtures\fullcol.xlsx"; Expr = ('=SUM(' + $jpSheet + '!$H:$H)'); Expected = "60" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

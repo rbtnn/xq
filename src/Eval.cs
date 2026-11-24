@@ -388,8 +388,8 @@ class EvalContext
         if (sh == null) return EvalValue.Err("#REF!");
         sheet = sh.Name;
 
-        if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
-        if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
+        if (!ResolveBounds(sheet, ref r1, ref c1, ref r2, ref c2))
+            return EvalValue.Err("#REF!");
 
         if (!IsCovered(sheet, r1, c1, r2, c2))
             EnsureRange(sheet, r1, c1, r2, c2);
@@ -442,6 +442,39 @@ class EvalContext
         out string targetSheet, out int r1, out int c1, out int r2, out int c2)
     {
         return book.TryResolveNameRange(name, sheet, out targetSheet, out r1, out c1, out r2, out c2);
+    }
+
+    public bool ResolveBounds(string sheet, ref int r1, ref int c1, ref int r2, ref int c2)
+    {
+        sheet = NormalizeSheet(sheet);
+        if (sheet == null) return false;
+
+        SheetInfo sh = FindSheet(sheet);
+        if (sh == null) return false;
+
+        int maxRow = 1;
+        int maxCol = 1;
+        string dim = book.GetDimension(sh);
+        if (!string.IsNullOrEmpty(dim))
+        {
+            int a, b, c, d;
+            if (A1.TryParseRange(dim, out a, out b, out c, out d))
+            {
+                maxRow = c;
+                maxCol = d;
+            }
+        }
+        if (maxRow < 1) maxRow = 1;
+        if (maxCol < 1) maxCol = 1;
+
+        if (r1 <= 0) r1 = 1;
+        if (r2 <= 0) r2 = maxRow;
+        if (c1 <= 0) c1 = 1;
+        if (c2 <= 0) c2 = maxCol;
+
+        if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
+        if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
+        return true;
     }
 
     void EnsureRange(string sheet, int r1, int c1, int r2, int c2)
@@ -1246,6 +1279,26 @@ class EvalParserImpl
             return new EvalRefNode(sheet, r1, c1, r1, c1, null);
         }
 
+        if (Current.Type == EvalTokenType.Colon)
+        {
+            if (A1.TryParseColumn(name, out c1))
+            {
+                Advance();
+                EvalToken t2 = Expect(EvalTokenType.Ident);
+                if (!A1.TryParseColumn(t2.Text, out c2))
+                    throw new EvalParseException("bad range end: " + t2.Text);
+                return new EvalRefNode(sheet, 0, c1, 0, c2, null);
+            }
+            if (A1.TryParseRow(name, out r1))
+            {
+                Advance();
+                EvalToken t2 = Expect(EvalTokenType.Ident);
+                if (!A1.TryParseRow(t2.Text, out r2))
+                    throw new EvalParseException("bad range end: " + t2.Text);
+                return new EvalRefNode(sheet, r1, 0, r2, 0, null);
+            }
+        }
+
         return new EvalRefNode(sheet, 0, 0, 0, 0, name);
     }
 }
@@ -1286,7 +1339,7 @@ class EvalRefNode : EvalNode
     {
         string targetSheet = sheet != null ? sheet : currentSheet;
         if (name != null) return ctx.ResolveName(name, targetSheet);
-        if (r1 == r2 && c1 == c2) return ctx.GetCell(targetSheet, r1, c1);
+        if (r1 > 0 && c1 > 0 && r1 == r2 && c1 == c2) return ctx.GetCell(targetSheet, r1, c1);
         return ctx.GetRange(targetSheet, r1, c1, r2, c2);
     }
 
@@ -1317,7 +1370,7 @@ class EvalRefNode : EvalNode
         bc1 = c1;
         br2 = r2;
         bc2 = c2;
-        return true;
+        return ctx.ResolveBounds(targetSheet, ref br1, ref bc1, ref br2, ref bc2);
     }
 }
 

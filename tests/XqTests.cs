@@ -265,6 +265,22 @@ public class XqTests
     }
 
     [Theory]
+    [InlineData("=VLOOKUP(L100,シート!$F:$H,3,FALSE)", "20")]
+    [InlineData("=VLOOKUP(L100,シート!F:H,3,FALSE)", "20")]
+    [InlineData("=VLOOKUP(\"c\",'シート'!$F:$H,2,FALSE)", "Carol")]
+    [InlineData("=VLOOKUP(\"b\",シート!$F:$H,3,FALSE)", "20")]
+    [InlineData("=SUM(シート!$H:$H)", "60")]
+    [InlineData("=COUNT(シート!$H:$H)", "3")]
+    [InlineData("=COUNTA(シート!$F:$H)", "12")]
+    [InlineData("=COLUMNS(シート!$F:$H)", "3")]
+    [InlineData("=SUM(シート!$F:$H)", "60")]
+    [InlineData("=VLOOKUP(\"b\",シート!$F:$H,4,FALSE)", "#REF!")]
+    public void FullColumnRanges(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("fullcol.xlsx", "シート", expr));
+    }
+
+    [Theory]
     [InlineData("=NA()", "#N/A")]
     [InlineData("=1/0", "#DIV/0!")]
     [InlineData("=UNKNOWN(1)", "#NAME?")]

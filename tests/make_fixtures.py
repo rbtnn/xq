@@ -139,6 +139,28 @@ def make_types(path):
     wb.save(path)
 
 
+def make_fullcol(path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "シート"
+
+    ws["F1"] = "key"
+    ws["G1"] = "name"
+    ws["H1"] = "value"
+    ws["F2"] = "a"
+    ws["G2"] = "Alice"
+    ws["H2"] = 10
+    ws["F3"] = "b"
+    ws["G3"] = "Bob"
+    ws["H3"] = 20
+    ws["F4"] = "c"
+    ws["G4"] = "Carol"
+    ws["H4"] = 30
+
+    ws["L100"] = "b"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook()
     ws = wb.add_sheet("Data")
@@ -160,5 +182,6 @@ if __name__ == "__main__":
     make_xlsx(os.path.join(out, "eval.xlsx"))
     make_graph(os.path.join(out, "graph.xlsx"))
     make_types(os.path.join(out, "types.xlsx"))
+    make_fullcol(os.path.join(out, "fullcol.xlsx"))
     make_xls(os.path.join(out, "eval.xls"))
-    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx and eval.xls")
+    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx, fullcol.xlsx and eval.xls")

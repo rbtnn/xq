@@ -56,6 +56,38 @@ static class A1
         return i == s.Length;
     }
 
+    public static bool TryParseColumn(string s, out int col)
+    {
+        col = 0;
+        if (string.IsNullOrEmpty(s)) return false;
+
+        int i = 0;
+        if (s[i] == '$') i++;
+
+        int start = i;
+        while (i < s.Length && IsAsciiLetter(s[i])) i++;
+        if (i == start || i != s.Length) return false;
+
+        col = ColToIndex(s.Substring(start, i - start));
+        return true;
+    }
+
+    public static bool TryParseRow(string s, out int row)
+    {
+        row = 0;
+        if (string.IsNullOrEmpty(s)) return false;
+
+        int i = 0;
+        if (s[i] == '$') i++;
+
+        int start = i;
+        while (i < s.Length && char.IsDigit(s[i])) i++;
+        if (i == start || i != s.Length) return false;
+
+        row = int.Parse(s.Substring(start, i - start), CultureInfo.InvariantCulture);
+        return true;
+    }
+
     public static bool TryParseRange(string s, out int r1, out int c1, out int r2, out int c2)
     {
         r1 = 0; c1 = 0; r2 = 0; c2 = 0;
@@ -73,11 +105,32 @@ static class A1
             return true;
         }
 
-        if (!TryParseRef(s.Substring(0, colon), out r1, out c1)) return false;
-        if (!TryParseRef(s.Substring(colon + 1), out r2, out c2)) return false;
+        string left = s.Substring(0, colon);
+        string right = s.Substring(colon + 1);
 
-        if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
-        if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
-        return true;
+        if (TryParseRef(left, out r1, out c1) && TryParseRef(right, out r2, out c2))
+        {
+            if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
+            if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
+            return true;
+        }
+
+        if (TryParseColumn(left, out c1) && TryParseColumn(right, out c2))
+        {
+            r1 = 0;
+            r2 = 0;
+            if (c1 > c2) { int t = c1; c1 = c2; c2 = t; }
+            return true;
+        }
+
+        if (TryParseRow(left, out r1) && TryParseRow(right, out r2))
+        {
+            c1 = 0;
+            c2 = 0;
+            if (r1 > r2) { int t = r1; r1 = r2; r2 = t; }
+            return true;
+        }
+
+        return false;
     }
 }
