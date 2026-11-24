@@ -161,6 +161,23 @@ def make_fullcol(path):
     wb.save(path)
 
 
+def make_csv(path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "CSV"
+
+    ws["A1"] = 'a,b"c'
+    ws["A2"] = "line1\nline2"
+    ws["A3"] = 1234.5
+    ws["A3"].number_format = "#,##0.00"
+    ws["A4"] = "02"
+    ws["A4"].number_format = "@"
+    ws["A5"] = 2
+    ws["A6"] = 2
+    ws["A6"].number_format = "00"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook()
     ws = wb.add_sheet("Data")
@@ -183,5 +200,6 @@ if __name__ == "__main__":
     make_graph(os.path.join(out, "graph.xlsx"))
     make_types(os.path.join(out, "types.xlsx"))
     make_fullcol(os.path.join(out, "fullcol.xlsx"))
+    make_csv(os.path.join(out, "csv.xlsx"))
     make_xls(os.path.join(out, "eval.xls"))
-    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx, fullcol.xlsx and eval.xls")
+    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx, fullcol.xlsx, csv.xlsx and eval.xls")

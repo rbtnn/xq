@@ -60,6 +60,7 @@ xq cells book.xlsx --formulas        :: 数式セルに "f" を付ける
 xq cells book.xlsx --all             :: 空セルも "v":null で出す
 xq cells book.xlsx --text            :: Excel の表示文字列を "text" に付ける
 xq cells book.xlsx --limit 100       :: 出力するセル数を 100 件で打ち切る
+xq cells book.xlsx --csv             :: CSV（sheet,ref,text。text は表示文字列）
 
 xq names book.xlsx                   :: 名前定義（NDJSON）
 xq names book.xlsx --name 売上       :: 名前で完全一致
@@ -85,6 +86,22 @@ xq book.xlsx -e "=SUM(A1:A10)"
 xq book.xlsx --json -e "=IF(A1>0,\"OK\",\"NG\")"
 xq eval book.xlsx -e "=A1+B1"
 ```
+
+CSV 出力（`--csv`）:
+
+```bat
+xq cells book.xlsx --csv
+:: sheet,ref,text
+:: Sheet1,A1,商品名
+:: Sheet1,B2,10
+:: ...
+```
+
+- ヘッダは `sheet,ref,text`
+- `text` は `--text` と同じ Excel 表示文字列（`numFmt` 適用後）
+- RFC 4180 に沿ってカンマ・ダブルクォート・改行をエスケープ
+- `--sheet` / `--range` / `--all` / `--limit` と併用可能
+- `--json` とは併用できません（`--csv` は `cells` 専用）
 
 jq との組み合わせ:
 
@@ -274,7 +291,8 @@ dotnet test tests/xq-tests.csproj
 - `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック
 - `tests/fixtures/types.xlsx` … 文字列 `"02"` / 数値 `2` / 表示形式 `00` のテスト用ブック
 - `tests/fixtures/fullcol.xlsx` … `シート!$F:$H` のような全列参照のテスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `fullcol.xlsx` / `eval.xls` の再生成
+- `tests/fixtures/csv.xlsx` … CSV エスケープ・表示文字列のテスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `fullcol.xlsx` / `csv.xlsx` / `eval.xls` の再生成
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1

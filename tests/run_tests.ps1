@@ -150,6 +150,34 @@ if ($r.Code -eq 0) {
     Write-Host ("TEXT FAIL: exit={0} err={1}" -f $r.Code, $r.Err)
 }
 
+$csvExpected = @'
+sheet,ref,text
+CSV,A1,"a,b""c"
+CSV,A2,"line1
+line2"
+CSV,A3,"1,234.50"
+CSV,A4,02
+CSV,A5,2
+CSV,A6,02
+'@
+$csvExpected = $csvExpected.Replace("`r`n", "`n").Trim()
+$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --csv'
+$csvActual = $r.Out.Replace("`r`n", "`n").Trim()
+if ($r.Code -ne 0 -or $csvActual -ne $csvExpected) {
+    $failures++
+    Write-Host ("CSV FAIL: exit={0} actual=[{1}]" -f $r.Code, $csvActual)
+} else {
+    Write-Host "CSV OK:   header + escaped text"
+}
+
+$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --csv --json'
+if ($r.Code -ne 2) {
+    $failures++
+    Write-Host ("CSV/JSON FAIL: exit={0} expected 2" -f $r.Code)
+} else {
+    Write-Host "CSV/JSON OK: exit=2"
+}
+
 $r = Invoke-Xq 'tests\fixtures\eval.xlsx -e "=A1+"'
 if ($r.Code -ne 2) {
     $failures++
