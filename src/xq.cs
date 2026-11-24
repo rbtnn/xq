@@ -8,7 +8,7 @@ class LimitReachedException : Exception { }
 
 class Program
 {
-    const string VERSION = "xq 0.1.0";
+    const string VERSION = "xq 0.1.2";
 
     static int Main(string[] args)
     {
