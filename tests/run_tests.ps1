@@ -100,6 +100,8 @@ $cliCases = @(
     @{ File = "tests\fixtures\eval.xlsx"; Expr = '=SUM(INDIRECT(ADDRESS(1,1)&":"&ADDRESS(3,1)))'; Expected = "6" },
     @{ File = "tests\fixtures\fullcol.xlsx"; Expr = ('=VLOOKUP(L100,' + $jpSheet + '!$F:$H,3,FALSE)'); Expected = "20" },
     @{ File = "tests\fixtures\fullcol.xlsx"; Expr = ('=SUM(' + $jpSheet + '!$H:$H)'); Expected = "60" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=XLOOKUP(1,A1:A3,B1:B3)"; Expected = "#UNIMPLEMENT!" },
+    @{ File = "tests\fixtures\eval.xlsx"; Expr = "=UNKNOWN(1)"; Expected = "#UNIMPLEMENT!" },
     @{ File = "tests\fixtures\eval.xlsx"; Expr = "=1/0"; Expected = "#DIV/0!" },
     @{ File = "tests\fixtures\eval.xls"; Expr = "=A1+A2"; Expected = "3" },
     @{ File = "tests\fixtures\eval.xlsb"; Expr = "=SUM(col1_)"; Expected = "15" }

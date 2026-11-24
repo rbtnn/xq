@@ -2322,7 +2322,7 @@ class EvalFunctionNode : EvalNode
             return EvalValue.Num(dt.Day);
         }
 
-        return EvalValue.Err("#NAME?");
+        return EvalValue.Err("#UNIMPLEMENT!");
     }
 
     static string QuoteSheet(string s)

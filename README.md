@@ -265,7 +265,11 @@ xq eval book.xlsx -e "=A1+B1"
   Excel の 1,048,576 行全体をメモリに展開しません。
 - `--json` を付けると `{"v":...,"t":"n|s|b|e|z|a"}` を出力します。
   `--text` を付けると `"text"` も追加します。
-- エラー値: `#DIV/0!`, `#VALUE!`, `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#NULL!`
+- エラー値: `#DIV/0!`, `#VALUE!`, `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#NULL!`,
+  および未実装の関数呼び出しに対する独自エラー `#UNIMPLEMENT!`
+- `#UNIMPLEMENT!` は、実装済みでない関数（例: `XLOOKUP`, `SUMIFS`, `TEXTJOIN`,
+  `LET`, `LAMBDA`）を評価したときに返します。`#VALUE!` などの引数エラーとは区別できます。
+  `IFERROR` / `ISERROR` では通常のエラーとして扱われます。
 
 制限:
 
@@ -285,7 +289,7 @@ xq eval book.xlsx -e "=A1+B1"
 dotnet test tests/xq-tests.csproj
 ```
 
-- `tests/XqTests.cs` … xUnit による評価器テスト（223ケース。参照、全列参照、演算、関数、入れ子関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
+- `tests/XqTests.cs` … xUnit による評価器テスト（236ケース。参照、全列参照、演算、関数、入れ子関数、未実装関数、エラー、日付、依存関係グラフ、文字列/数値、`.xlsx` / `.xls` / `.xlsb`）
 - `tests/run_tests.ps1` … `dotnet test` と CLI スモークテスト（`xq.exe` のビルドも行う）
 - `tests/fixtures/eval.xlsx` / `eval.xls` / `eval.xlsb` … テスト用ブック
 - `tests/fixtures/graph.xlsx` … 依存関係グラフ・循環参照のテスト用ブック

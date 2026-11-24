@@ -281,9 +281,28 @@ public class XqTests
     }
 
     [Theory]
+    [InlineData("=UNKNOWN(1)", "#UNIMPLEMENT!")]
+    [InlineData("=UNKNOWN()", "#UNIMPLEMENT!")]
+    [InlineData("=XLOOKUP(1,A1:A3,B1:B3)", "#UNIMPLEMENT!")]
+    [InlineData("=HLOOKUP(1,A1:B3,2,FALSE)", "#UNIMPLEMENT!")]
+    [InlineData("=SUMIFS(A1:A3,A1:A3,\">1\")", "#UNIMPLEMENT!")]
+    [InlineData("=COUNTIFS(A1:A3,\">1\")", "#UNIMPLEMENT!")]
+    [InlineData("=TEXTJOIN(\",\",TRUE,B1:B2)", "#UNIMPLEMENT!")]
+    [InlineData("=LET(x,1,x)", "#UNIMPLEMENT!")]
+    [InlineData("=LAMBDA(x,x+1)", "#UNIMPLEMENT!")]
+    [InlineData("=IFERROR(XLOOKUP(1,A1:A3,B1:B3),\"fallback\")", "fallback")]
+    [InlineData("=ISERROR(XLOOKUP(1,A1:A3,B1:B3))", "TRUE")]
+    [InlineData("=ISNA(XLOOKUP(1,A1:A3,B1:B3))", "FALSE")]
+    [InlineData("=SUM(XLOOKUP(1,A1:A3,B1:B3))", "#UNIMPLEMENT!")]
+    public void UnimplementedFunctions(string expr, string expected)
+    {
+        Assert.Equal(expected, Eval("eval.xlsx", "Data", expr));
+    }
+
+    [Theory]
     [InlineData("=NA()", "#N/A")]
     [InlineData("=1/0", "#DIV/0!")]
-    [InlineData("=UNKNOWN(1)", "#NAME?")]
+    [InlineData("=UNKNOWN(1)", "#UNIMPLEMENT!")]
     [InlineData("=VLOOKUP(99,A1:B3,2,FALSE)", "#N/A")]
     [InlineData("=VLOOKUP(2,A1:B3,0,FALSE)", "#VALUE!")]
     [InlineData("=VLOOKUP(2,A1:B3,3,FALSE)", "#REF!")]
