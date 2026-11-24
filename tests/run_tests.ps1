@@ -153,26 +153,48 @@ if ($r.Code -eq 0) {
 }
 
 $csvExpected = @'
-sheet,ref,text
-CSV,A1,"a,b""c"
-CSV,A2,"line1
+"a,b""c"
+"line1
 line2"
-CSV,A3,"1,234.50"
-CSV,A4,02
-CSV,A5,2
-CSV,A6,02
+"1,234.50"
+02
+2
+02
 '@
 $csvExpected = $csvExpected.Replace("`r`n", "`n").Trim()
-$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --csv'
+$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --sheet CSV --csv'
 $csvActual = $r.Out.Replace("`r`n", "`n").Trim()
 if ($r.Code -ne 0 -or $csvActual -ne $csvExpected) {
     $failures++
     Write-Host ("CSV FAIL: exit={0} actual=[{1}]" -f $r.Code, $csvActual)
 } else {
-    Write-Host "CSV OK:   header + escaped text"
+    Write-Host "CSV OK:   spreadsheet grid + escaped text"
 }
 
-$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --csv --json'
+$gridExpected = @'
+A1,B1,"1,234.50"
+A2,,C2
+,B3,
+'@
+$gridExpected = $gridExpected.Replace("`r`n", "`n").Trim()
+$r = Invoke-Xq 'cells tests\fixtures\grid.xlsx --sheet Grid --csv'
+$gridActual = $r.Out.Replace("`r`n", "`n").Trim()
+if ($r.Code -ne 0 -or $gridActual -ne $gridExpected) {
+    $failures++
+    Write-Host ("GRID FAIL: exit={0} actual=[{1}]" -f $r.Code, $gridActual)
+} else {
+    Write-Host "GRID OK:   rows/columns with blanks"
+}
+
+$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --csv'
+if ($r.Code -ne 2) {
+    $failures++
+    Write-Host ("CSV SHEET FAIL: exit={0} expected 2" -f $r.Code)
+} else {
+    Write-Host "CSV SHEET OK: exit=2"
+}
+
+$r = Invoke-Xq 'cells tests\fixtures\csv.xlsx --sheet CSV --csv --json'
 if ($r.Code -ne 2) {
     $failures++
     Write-Host ("CSV/JSON FAIL: exit={0} expected 2" -f $r.Code)

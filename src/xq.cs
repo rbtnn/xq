@@ -8,7 +8,7 @@ class LimitReachedException : Exception { }
 
 class Program
 {
-    const string VERSION = "xq 0.1.4";
+    const string VERSION = "xq 0.1.5";
 
     static int Main(string[] args)
     {
@@ -111,11 +111,20 @@ class Program
             Console.Error.WriteLine("--csv is only supported by cells");
             return 2;
         }
+        if (csv && string.IsNullOrEmpty(sheetOpt))
+        {
+            Console.Error.WriteLine("--csv requires --sheet");
+            return 2;
+        }
 
         try
         {
             if (cmd == "sheets") return CmdSheets(file);
-            if (cmd == "cells") return CmdCells(file, sheetOpt, rangeOpt, json, formulas, all, text, csv, limitOpt);
+            if (cmd == "cells")
+            {
+                if (csv) return CmdCellsCsv(file, sheetOpt, rangeOpt, limitOpt);
+                return CmdCells(file, sheetOpt, rangeOpt, json, formulas, all, text, limitOpt);
+            }
             if (cmd == "eval") return CmdEval(file, expr, sheetOpt, json, text);
             if (cmd == "names") return CmdNames(file, nameOpt, sheetOpt, grepOpt, json);
             if (cmd == "vba") return CmdVba(file, moduleOpt);
@@ -152,7 +161,110 @@ class Program
         return 0;
     }
 
-    static int CmdCells(string file, string sheetOpt, string rangeOpt, bool json, bool formulas, bool all, bool text, bool csv, int limit)
+    static int CmdCellsCsv(string file, string sheetOpt, string rangeOpt, int limit)
+    {
+        IBook x = Book.Open(file);
+        try
+        {
+            SheetInfo sh = null;
+            for (int i = 0; i < x.Sheets.Count; i++)
+            {
+                if (string.Equals(x.Sheets[i].Name, sheetOpt, StringComparison.Ordinal))
+                {
+                    sh = x.Sheets[i];
+                    break;
+                }
+            }
+            if (sh == null)
+            {
+                Console.Error.WriteLine("sheet not found: " + sheetOpt);
+                return 2;
+            }
+
+            int r1 = 1, c1 = 1, r2 = 0, c2 = 0;
+            if (rangeOpt != null)
+            {
+                if (!A1.TryParseRange(rangeOpt, out r1, out c1, out r2, out c2))
+                {
+                    string targetSheet;
+                    if (!x.TryResolveNameRange(rangeOpt, sheetOpt, out targetSheet, out r1, out c1, out r2, out c2))
+                    {
+                        if (x.FindName(rangeOpt, sheetOpt) != null)
+                            Console.Error.WriteLine("defined name is not a single rectangular range: " + rangeOpt);
+                        else
+                            Console.Error.WriteLine("bad --range or unknown name: " + rangeOpt);
+                        return 2;
+                    }
+                    if (targetSheet != null && !string.Equals(targetSheet, sh.Name, StringComparison.Ordinal))
+                    {
+                        Console.Error.WriteLine("--range is on another sheet: " + targetSheet);
+                        return 2;
+                    }
+                }
+            }
+            else
+            {
+                string dim = x.GetDimension(sh);
+                if (string.IsNullOrEmpty(dim) || !A1.TryParseRange(dim, out r1, out c1, out r2, out c2))
+                {
+                    // Empty sheet: nothing to output.
+                    return 0;
+                }
+            }
+
+            ClampRange(x, sh, ref r1, ref c1, ref r2, ref c2);
+            if (limit >= 0 && r2 - r1 + 1 > limit)
+                r2 = r1 + limit - 1;
+
+            int rows = r2 - r1 + 1;
+            int cols = c2 - c1 + 1;
+            if (rows <= 0 || cols <= 0) return 0;
+
+            string[,] grid = new string[rows, cols];
+            CellSink sink = delegate (string sn, int row, int col, string val, string type, string f, int styleIndex)
+            {
+                if (val == null) return;
+                int rr = row - r1;
+                int cc = col - c1;
+                if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) return;
+                grid[rr, cc] = CellText(x, styleIndex, val, type);
+            };
+            x.ReadCells(sh, r1, c1, r2, c2, sink);
+
+            StreamWriter sw = Out();
+            StringBuilder sb = new StringBuilder(256);
+            StringBuilder outBuf = new StringBuilder(65536);
+            for (int r = 0; r < rows; r++)
+            {
+                sb.Length = 0;
+                for (int c = 0; c < cols; c++)
+                {
+                    if (c > 0) sb.Append(',');
+                    CsvField(sb, grid[r, c]);
+                }
+                outBuf.Append(sb);
+                outBuf.Append('\n');
+                if (outBuf.Length >= 65536)
+                {
+                    sw.Write(outBuf.ToString());
+                    outBuf.Length = 0;
+                }
+            }
+            if (outBuf.Length > 0)
+            {
+                sw.Write(outBuf.ToString());
+                outBuf.Length = 0;
+            }
+            sw.Flush();
+            return 0;
+        }
+        finally
+        {
+            x.Dispose();
+        }
+    }
+
+    static int CmdCells(string file, string sheetOpt, string rangeOpt, bool json, bool formulas, bool all, bool text, int limit)
     {
         IBook x = Book.Open(file);
 
@@ -180,7 +292,6 @@ class Program
         bool first = true;
         int emitted = 0;
         if (json) sw.Write('[');
-        if (csv) sw.Write("sheet,ref,text\n");
 
         CellSink sink = delegate (string sn, int row, int col, string val, string type, string f, int styleIndex)
         {
@@ -188,61 +299,47 @@ class Program
             if (limit >= 0 && emitted >= limit) throw new LimitReachedException();
 
             sb.Length = 0;
-            if (csv)
+            sb.Append("{\"sheet\":");
+            JsonString(sb, sn);
+            sb.Append(",\"ref\":\"");
+            AppendCol(sb, col);
+            sb.Append(row);
+            sb.Append("\",\"r\":");
+            sb.Append(row);
+            sb.Append(",\"c\":");
+            sb.Append(col);
+            sb.Append(",\"v\":");
+
+            if (val == null) sb.Append("null");
+            else if (type == "n" || type == "b") sb.Append(val);
+            else JsonString(sb, val);
+
+            sb.Append(",\"t\":");
+            if (type == null) sb.Append("null");
+            else JsonString(sb, type);
+
+            if (formulas && f != null && f.Length > 0)
             {
-                CsvField(sb, sn);
-                sb.Append(',');
-                AppendCol(sb, col);
-                sb.Append(row);
-                sb.Append(',');
-                CsvField(sb, CellText(x, styleIndex, val, type));
-                outBuf.Append(sb);
-                outBuf.Append('\n');
+                sb.Append(",\"f\":");
+                JsonString(sb, f);
             }
-            else
+
+            if (text)
             {
-                sb.Append("{\"sheet\":");
-                JsonString(sb, sn);
-                sb.Append(",\"ref\":\"");
-                AppendCol(sb, col);
-                sb.Append(row);
-                sb.Append("\",\"r\":");
-                sb.Append(row);
-                sb.Append(",\"c\":");
-                sb.Append(col);
-                sb.Append(",\"v\":");
-
-                if (val == null) sb.Append("null");
-                else if (type == "n" || type == "b") sb.Append(val);
-                else JsonString(sb, val);
-
-                sb.Append(",\"t\":");
-                if (type == null) sb.Append("null");
-                else JsonString(sb, type);
-
-                if (formulas && f != null && f.Length > 0)
-                {
-                    sb.Append(",\"f\":");
-                    JsonString(sb, f);
-                }
-
-                if (text)
-                {
-                    sb.Append(",\"text\":");
-                    string tv = CellText(x, styleIndex, val, type);
-                    if (tv == null) sb.Append("null");
-                    else JsonString(sb, tv);
-                }
-                sb.Append('}');
-
-                if (json)
-                {
-                    if (!first) outBuf.Append(',');
-                    first = false;
-                }
-                outBuf.Append(sb);
-                if (!json) outBuf.Append('\n');
+                sb.Append(",\"text\":");
+                string tv = CellText(x, styleIndex, val, type);
+                if (tv == null) sb.Append("null");
+                else JsonString(sb, tv);
             }
+            sb.Append('}');
+
+            if (json)
+            {
+                if (!first) outBuf.Append(',');
+                first = false;
+            }
+            outBuf.Append(sb);
+            if (!json) outBuf.Append('\n');
 
             emitted++;
             if (limit >= 0 && emitted >= limit) throw new LimitReachedException();
@@ -642,7 +739,7 @@ class Program
         Console.Error.WriteLine("         --formulas             include \"f\" (formula text)");
         Console.Error.WriteLine("         --all                  include empty cells (\"v\":null)");
         Console.Error.WriteLine("         --text                 add \"text\" (Excel-style display string)");
-        Console.Error.WriteLine("         --csv                  CSV (sheet,ref,text) using display text");
+        Console.Error.WriteLine("         --csv                  CSV grid of display text (requires --sheet)");
         Console.Error.WriteLine("         --limit N              stop after N emitted cells");
         Console.Error.WriteLine("  eval   <file> -e EXPR        evaluate an Excel expression (e.g. -e \"=A1+B1\")");
         Console.Error.WriteLine("  <file> -e EXPR               same as eval (xq book.xlsx -e \"=A1\")");

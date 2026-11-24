@@ -10,7 +10,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <Authors>rbtnn</Authors>
     <Description>xq - xlsx/xlsm/xlsb/xls CLI</Description>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>

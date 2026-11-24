@@ -60,7 +60,7 @@ xq cells book.xlsx --formulas        :: 数式セルに "f" を付ける
 xq cells book.xlsx --all             :: 空セルも "v":null で出す
 xq cells book.xlsx --text            :: Excel の表示文字列を "text" に付ける
 xq cells book.xlsx --limit 100       :: 出力するセル数を 100 件で打ち切る
-xq cells book.xlsx --csv             :: CSV（sheet,ref,text。text は表示文字列）
+xq cells book.xlsx --sheet Sheet1 --csv :: CSV グリッド（sheet 指定必須）
 
 xq names book.xlsx                   :: 名前定義（NDJSON）
 xq names book.xlsx --name 売上       :: 名前で完全一致
@@ -90,17 +90,21 @@ xq eval book.xlsx -e "=A1+B1"
 CSV 出力（`--csv`）:
 
 ```bat
-xq cells book.xlsx --csv
-:: sheet,ref,text
-:: Sheet1,A1,商品名
-:: Sheet1,B2,10
+xq cells book.xlsx --sheet Sheet1 --csv
+:: 商品名,数量
+:: りんご,10
 :: ...
 ```
 
-- ヘッダは `sheet,ref,text`
+- `--sheet` は必須です（指定しない場合は exit 2）
+- スプレッドシートと同じ行・列配置で出力します（1行がシートの1行）
+- ヘッダ行は付けません
+- `--range A1:C10` を指定すると、その矩形をそのまま出力します
+- `--range` を省略すると、そのシートの使用範囲（dimension）を出力します
+- 空セルは空フィールドとして出力します
 - `text` は `--text` と同じ Excel 表示文字列（`numFmt` 適用後）
 - RFC 4180 に沿ってカンマ・ダブルクォート・改行をエスケープ
-- `--sheet` / `--range` / `--all` / `--limit` と併用可能
+- `--limit N` は出力する**行数**を N 行に制限します
 - `--json` とは併用できません（`--csv` は `cells` 専用）
 
 jq との組み合わせ:
@@ -296,7 +300,8 @@ dotnet test tests/xq-tests.csproj
 - `tests/fixtures/types.xlsx` … 文字列 `"02"` / 数値 `2` / 表示形式 `00` のテスト用ブック
 - `tests/fixtures/fullcol.xlsx` … `シート!$F:$H` のような全列参照のテスト用ブック
 - `tests/fixtures/csv.xlsx` … CSV エスケープ・表示文字列のテスト用ブック
-- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `fullcol.xlsx` / `csv.xlsx` / `eval.xls` の再生成
+- `tests/fixtures/grid.xlsx` … CSV の行・列配置・空セルのテスト用ブック
+- `tests/make_fixtures.py` … `eval.xlsx` / `graph.xlsx` / `types.xlsx` / `fullcol.xlsx` / `csv.xlsx` / `grid.xlsx` / `eval.xls` の再生成
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tests\run_tests.ps1

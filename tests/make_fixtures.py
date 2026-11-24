@@ -178,6 +178,21 @@ def make_csv(path):
     wb.save(path)
 
 
+def make_grid(path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Grid"
+
+    ws["A1"] = "A1"
+    ws["B1"] = "B1"
+    ws["C1"] = 1234.5
+    ws["C1"].number_format = "#,##0.00"
+    ws["A2"] = "A2"
+    ws["C2"] = "C2"
+    ws["B3"] = "B3"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook()
     ws = wb.add_sheet("Data")
@@ -201,5 +216,6 @@ if __name__ == "__main__":
     make_types(os.path.join(out, "types.xlsx"))
     make_fullcol(os.path.join(out, "fullcol.xlsx"))
     make_csv(os.path.join(out, "csv.xlsx"))
+    make_grid(os.path.join(out, "grid.xlsx"))
     make_xls(os.path.join(out, "eval.xls"))
-    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx, fullcol.xlsx, csv.xlsx and eval.xls")
+    print("wrote tests/fixtures/eval.xlsx, graph.xlsx, types.xlsx, fullcol.xlsx, csv.xlsx, grid.xlsx and eval.xls")
